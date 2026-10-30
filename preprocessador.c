@@ -155,7 +155,7 @@ void RemoverTabEspacos(char * fn)
 void PreProcessamento(char * entrada, char * saida)
 {
     char cmd[256];
-    sprintf(cmd, "cp %s ref", entrada); // 'cp' para Linux, 'copy' para Windows
+    sprintf(cmd, "%s %s ref", CPCOMMAND, entrada); // 'cp' para Linux, 'copy' para Windows
     system(cmd);
     NormalizarQuebraDeLinha(ARQUIVO_REFERENCIA);
     RemoverComentarios(ARQUIVO_REFERENCIA);
