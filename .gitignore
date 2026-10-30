@@ -65,5 +65,8 @@ teste_0*
 
 # Evita arquivo de referência e script que eu estou usando ~kristhian
 ref
-out
-run 
+out.err
+out.pre
+out.lex
+out.sin
+run
