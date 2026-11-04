@@ -70,3 +70,6 @@ out.pre
 out.lex
 out.sin
 run
+
+# Arquivo .dot gerado pelo analisador sintático do professor
+arvore.dot
