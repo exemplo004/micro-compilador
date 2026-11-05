@@ -4,21 +4,42 @@
 #include "sintatico.h"
 
 void AnaliseSintatica(FILE * in, FILE * out) {
-    char frase[256];
-    Derivassaum der[256];
+    Token tokens[MAX_TOKENS] = { 0 };
 
     // Lê a saída do léxico e cria uma fila de token para preparação para a análise sintática
-    int i = 0;
-    while(fgets(frase, sizeof(frase), in))
-    {
-        extrairLexema(frase, &der[i]);
-        i++;
-    }
-
+    extrairLexemas(in, &tokens[0]);
+    exibirTokens(&tokens[0]);
+    
     // TODO: transformar o vetor em estrutura de árvore
-
 }
 
-void extrairLexema (char * f, Derivassaum * dest) {
-    sscanf(f, "<%[^,], %[^>]> %d %d", dest->token.nome, dest->token.lexema, &dest->token.linha, &dest->token.coluna);
+void extrairLexemas (FILE * in, Token * dst) {
+    char frase[256];
+    int i = 0;
+    int curLinha = 1;
+    
+    while(fgets(frase, sizeof(frase), in))
+    {
+        Token t = { 0 };
+        sscanf(frase, "<%[^,], %[^>]> %d %d", t.nome, t.lexema, &t.linha, &t.coluna);
+
+
+        if (curLinha != t.linha) {
+            Token eol = { "EOL", "eol", curLinha, dst[i - 1].coluna + (strlen(dst[i - 1].lexema)) };
+            dst[i++] = eol;
+            
+            curLinha = t.linha;
+        }
+
+        dst[i++] = t;
+    }
+}
+
+void exibirTokens(Token * t) {
+    int i = 0;
+
+    while (t[i].nome[0] != '\0' && i < MAX_TOKENS) {
+        printf("%i. %s\t%s\t%i\t%i\n", i, t[i].nome, t[i].lexema, t[i].linha, t[i].coluna);
+        i++;
+    }
 }
