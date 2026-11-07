@@ -3,11 +3,13 @@
 
 #include "lexico.h"
 
+// Estrutura de árvore sintática
+// É como se fosse um nó de uma árvore binária
 typedef struct AST {
     TipoToken tipo;
-    char *lexema;
-    struct AST *left;
-    struct AST *right;
+    char * lexema;
+    struct AST * esq;
+    struct AST * dir;
 } AST;
 
 /* Retorna NULL e emite diagnostico se houver erro.

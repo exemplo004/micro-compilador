@@ -22,8 +22,8 @@ static AST *unario(Parser *p);
 
 void ast_free(AST *t) {
     if (!t) return;
-    ast_free(t->left);
-    ast_free(t->right);
+    ast_free(t->esq);
+    ast_free(t->dir);
     free(t->lexema);
     free(t);
 }
@@ -36,10 +36,18 @@ static void erro(Parser *p, const char *mensagem) {
     p->erro = 1;
 }
 
+// Avança o cursor do scanner para o próximo token e o transforma em seu token atual
 static void consumir(Parser *p) {
+    // Aborta caso o parser tenha encontrado um erro
     if (p->erro) return;
+
+    // Libera o espaço de lexema do token atual (malloc() está em AST * novo())
     free(p->atual.lexema);
+
+    // Pede para que o scanner busque o próximo token e faz desse token o token atual do parser
     p->atual = proximo_token(p->scanner);
+
+    // Declara erro no parser caso ocorreram falhas na identificação do token (ainda é erro léxico)
     if (p->atual.tipo == TOKEN_ERRO) {
         fprintf(stderr, "Erro lexico na linha %d, coluna %d: %s.\n",
                 p->atual.linha, p->atual.coluna, p->atual.lexema);
@@ -62,8 +70,8 @@ static AST *novo(Parser *p, TipoToken tipo, const char *lexema, AST *l, AST *r) 
     strcpy(copia, lexema);
     t->tipo = tipo;
     t->lexema = copia;
-    t->left = l;
-    t->right = r;
+    t->esq = l;
+    t->dir = r;
     return t;
 }
 
@@ -99,17 +107,26 @@ static AST *potencia(Parser *p) {
 }
 
 static AST *unario(Parser *p) {
+    // Aborta se o parser indicar erro
     if (p->erro) return NULL;
+
+    // Aborta se o nível da árvore for igual ou maior que 256 (aninhamento é chique)
     if (p->nivel >= 256) {
         erro(p, "limite de aninhamento excedido");
         return NULL;
     }
+
+    // Incrementa o nível de ⊹₊˚‧︵‿₊୨ aninhamento ୧₊‿︵‧˚₊⊹ 
     p->nivel++;
     AST *t;
+
+    // Se o token atual for '+' ou '-' consome-o e chama-o novamente... sério?
     if (p->atual.tipo == TOKEN_MAIS || p->atual.tipo == TOKEN_MENOS) {
         TipoToken tipo = p->atual.tipo;
         consumir(p);
-        AST *r = unario(p);
+
+        // Recursividade??
+        AST * r = unario(p); // ... 🤙🏻
         if (p->erro) { ast_free(r); t = NULL; }
         else t = novo(p, tipo, tipo == TOKEN_MAIS ? "+" : "-", NULL, r);
     } else t = potencia(p);
@@ -130,7 +147,7 @@ static AST *termo(Parser *p) {
 }
 
 static AST *expressao(Parser *p) {
-    AST *l = termo(p);
+    AST * l = termo(p);
     while (!p->erro && (p->atual.tipo == TOKEN_MAIS || p->atual.tipo == TOKEN_MENOS)) {
         TipoToken tipo = p->atual.tipo;
         consumir(p);
@@ -141,11 +158,17 @@ static AST *expressao(Parser *p) {
     return l;
 }
 
-AST *parse_ast(Scanner *scanner) {
-    Parser p = {0};
+// 
+AST * parse_ast(Scanner * scanner) {
+    // Inicializa o parser com 0 em todos os atributos, exceto o p.scanner, que a ele é atribuído o scanner principal do programa
+    Parser p = { 0 };
     p.scanner = scanner;
+
+    // Atualiza o token atual do parser utilizando seu scanner
     consumir(&p);
-    AST *raiz = expressao(&p);
+
+    // 
+    AST * raiz = expressao(&p);
     if (!p.erro && p.atual.tipo != TOKEN_FIM)
         erro(&p, "esperado operador ou fim da expressao");
     free(p.atual.lexema);
@@ -157,22 +180,22 @@ void ast_print(const AST *t, int profundidade) {
     if (!t) return;
     for (int i = 0; i < profundidade; i++) fputs("  ", stdout);
     if (t->tipo == TOKEN_INTEIRO) printf("INTEIRO(%s)\n", t->lexema);
-    else printf("%s%s\n", t->lexema, t->left ? "" : " (unario)");
-    ast_print(t->left, profundidade + 1);
-    ast_print(t->right, profundidade + 1);
+    else printf("%s%s\n", t->lexema, t->esq ? "" : " (unario)");
+    ast_print(t->esq, profundidade + 1);
+    ast_print(t->dir, profundidade + 1);
 }
 
 static int dot_rec(const AST *t, FILE *f, int *id) {
     int atual = (*id)++;
     /* Lexemas sao apenas digitos ou operadores, sem caracteres de escape DOT. */
     fprintf(f, "  n%d [label=\"%s%s\"];\n", atual, t->lexema,
-            t->tipo != TOKEN_INTEIRO && !t->left ? " (unario)" : "");
-    if (t->left) {
-        int filho = dot_rec(t->left, f, id);
+            t->tipo != TOKEN_INTEIRO && !t->esq ? " (unario)" : "");
+    if (t->esq) {
+        int filho = dot_rec(t->esq, f, id);
         fprintf(f, "  n%d -> n%d;\n", atual, filho);
     }
-    if (t->right) {
-        int filho = dot_rec(t->right, f, id);
+    if (t->dir) {
+        int filho = dot_rec(t->dir, f, id);
         fprintf(f, "  n%d -> n%d;\n", atual, filho);
     }
     return atual;
