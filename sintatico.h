@@ -1,16 +1,14 @@
 #ifndef SINTATICO_H
 #define SINTATICO_H
+#include <stdio.h>
 #include "lexico.h" // para a struct Token
 
-#define MAX_TOKENS 256
+#define MAX_TOKENS 4096
 
-typedef struct {
-    Token token;
-    int ehTerminal; // bool que será utilizado para a construção da árvore
-} Derivassaum; // Estrutura para gerar a cadeia que forma uma sentença
+//retorna 0 se valido, 1 se invalido, -1 se erro operacional
+int AnaliseSintatica(FILE *tokens, FILE *arvore, FILE *erros);
 
-void AnaliseSintatica(FILE * lexOut, FILE * saidaSintatico);
-void extrairLexemas(FILE * lexOut, Token * destino);
-void exibirTokens(Token * tokenVector);
+int extrairLexemas(FILE *in, Token *dst);
+void exibirTokens(Token *tokenVector, int total);
 
 #endif

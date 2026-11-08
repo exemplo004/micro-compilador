@@ -163,7 +163,7 @@ void PreProcessamento(char * entrada, char * saida)
     RemoverTabEspacos(ARQUIVO_REFERENCIA);
 
     // Copia o arquivo temporário 'ref' para o nome final que o usuário pediu
-    sprintf(cmd, "cp ref %s", saida); // 'cp' para Linux, 'copy' para Windows
+    sprintf(cmd, "%s ref %s", CPCOMMAND, saida); // 'cp' para Linux, 'copy' para Windows
     system(cmd);
     remove("ref");
 }

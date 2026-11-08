@@ -65,7 +65,8 @@ int main (int argc, char ** argv)
         return 1;
     }
 
-    AnaliseSintatica(entradaSintatico, saidaSintatico);
+    FILE * errosSintatico = fopen("erros_temporarios.txt", "w");
+    AnaliseSintatica(entradaSintatico, saidaSintatico, errosSintatico);
     fclose(entradaSintatico);
     fclose(saidaSintatico);
 
