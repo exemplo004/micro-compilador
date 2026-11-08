@@ -1,5 +1,6 @@
 #ifndef SINTATICO_H
 #define SINTATICO_H
+#include <stdio.h>
 #include "lexico.h" // para a struct Token
 
 #define MAX_TOKENS 256
