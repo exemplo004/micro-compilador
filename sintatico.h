@@ -46,7 +46,7 @@ typedef struct AST {
     struct AST * dir;
 } AST;
 
-void AnaliseSintatica(FILE * lexOut, FILE * saidaSintatico);
+void AnaliseSintatica(FILE * lexOut, FILE * saidaSintatico, FILE * errSintatico);
 void extrairLexemas(FILE * lexOut, Token * destino);
 void exibirTokens(Token * tokenVector);
 

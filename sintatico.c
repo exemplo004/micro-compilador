@@ -6,8 +6,8 @@
 //le o arquivo .lex e insere os tokens EOL e TK_EOF
 int extrairLexemas(FILE *in, Token *dst) {
     char frase[256];
-    int total = 0;
-    int linhaAnterior = 0;
+    int i = 0;
+    int linhaAnterior = 0; // Registra linha ao adicionar um token, para o caso do próximo token ser um EOL
     int temTokenNaLinha = 0;
 
     while (fgets(frase,sizeof(frase), in) != NULL) {
@@ -18,47 +18,50 @@ int extrairLexemas(FILE *in, Token *dst) {
         if (lidos < 4) {
             continue;
         }
+
         //se for o token de fim, para de ler as linhas
         if (strcmp(t.nome, "TK_EOF") == 0) {
             break;
         }
+
         //se mudou de linha e a linha anterior tinha token, coloca o EOL da linha anterior
         if (linhaAnterior != 0 && t.linha != linhaAnterior && temTokenNaLinha) {
-            if (total < MAX_TOKENS) {
-                strcpy(dst[total].nome, "EOL");
-                strcpy(dst[total].lexema, "EOL");
-                dst[total].linha = linhaAnterior;
-                dst[total].coluna = dst[total - 1].coluna + (int)strlen(dst[total - 1].lexema); 
+            if (i < MAX_TOKENS) {
+                strcpy(dst[i].nome, "EOL");
+                strcpy(dst[i].lexema, "EOL");
+                dst[i].linha = linhaAnterior;
+                dst[i].coluna = dst[i - 1].coluna + (int)strlen(dst[i - 1].lexema); 
                 //pega a coluna de onde o ultimo token começou e soma com a quantidade de letras que o token tem
-                total++;
+                i++;
             }
             temTokenNaLinha = 0;
         }
+        
         //coloca o token lido no vetor
-        if (total < MAX_TOKENS) {
-            dst[total] = t;
-            total++;
+        if (i < MAX_TOKENS) {
+            dst[i] = t;
+            i++;
             linhaAnterior = t.linha;
             temTokenNaLinha = 1;
         }
     }
     //se a ultima linha do programa tinha token, ela tambem precisa de um EOL antes do final
-    if (temTokenNaLinha && total < MAX_TOKENS) {
-        strcpy(dst[total].nome, "EOL");
-        strcpy(dst[total].lexema, "EOL");
-        dst[total].linha = linhaAnterior;
-        dst[total].coluna = dst[total - 1].coluna + (int)strlen(dst[total - 1].lexema);
-        total++;
+    if (temTokenNaLinha && i < MAX_TOKENS) {
+        strcpy(dst[i].nome, "EOL");
+        strcpy(dst[i].lexema, "EOL");
+        dst[i].linha = linhaAnterior;
+        dst[i].coluna = dst[i - 1].coluna + (int)strlen(dst[i - 1].lexema);
+        i++;
     }
     //adiciona TK_EOF no final da sequencia
-    if (total < MAX_TOKENS) {
-        strcpy(dst[total].nome, "TK_EOF");
-        strcpy(dst[total].lexema, "EOF");
-        dst[total].linha = linhaAnterior;
-        dst[total].coluna = (total > 0) ? (dst[total - 1].coluna + 1) : 1;
-        total++;
+    if (i < MAX_TOKENS) {
+        strcpy(dst[i].nome, "TK_EOF");
+        strcpy(dst[i].lexema, "EOF");
+        dst[i].linha = linhaAnterior;
+        dst[i].coluna = (i > 0) ? (dst[i - 1].coluna + 1) : 1;
+        i++;
     }
-    return total;
+    return i;
 }
 
 void exibirTokens(Token * t, int total) {
