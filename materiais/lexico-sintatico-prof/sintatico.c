@@ -75,6 +75,7 @@ static AST *novo(Parser *p, TipoToken tipo, const char *lexema, AST *l, AST *r) 
     return t;
 }
 
+// F -> INTEIRO | '(' E ')'
 static AST *primario(Parser *p) {
     if (p->erro) return NULL;
     if (p->atual.tipo == TOKEN_INTEIRO) {
@@ -95,6 +96,7 @@ static AST *primario(Parser *p) {
     return NULL;
 }
 
+// P -> F [ '^' U ]
 static AST *potencia(Parser *p) {
     AST *l = primario(p);
     if (!p->erro && p->atual.tipo == TOKEN_POT) {
@@ -106,6 +108,7 @@ static AST *potencia(Parser *p) {
     return l;
 }
 
+// U -> ('+' | '-') U | P
 static AST *unario(Parser *p) {
     // Aborta se o parser indicar erro
     if (p->erro) return NULL;
@@ -134,6 +137,7 @@ static AST *unario(Parser *p) {
     return t;
 }
 
+// T -> U { ('*' | '/') U }
 static AST *termo(Parser *p) {
     AST *l = unario(p);
     while (!p->erro && (p->atual.tipo == TOKEN_MULT || p->atual.tipo == TOKEN_DIV)) {
@@ -146,6 +150,7 @@ static AST *termo(Parser *p) {
     return l;
 }
 
+// E -> T { ('+' | '-') T }
 static AST *expressao(Parser *p) {
     AST * l = termo(p);
     while (!p->erro && (p->atual.tipo == TOKEN_MAIS || p->atual.tipo == TOKEN_MENOS)) {
@@ -167,7 +172,6 @@ AST * parse_ast(Scanner * scanner) {
     // Atualiza o token atual do parser utilizando seu scanner
     consumir(&p);
 
-    // 
     AST * raiz = expressao(&p);
     if (!p.erro && p.atual.tipo != TOKEN_FIM)
         erro(&p, "esperado operador ou fim da expressao");

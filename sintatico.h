@@ -6,8 +6,8 @@
 #define MAX_TOKENS 256
 
 typedef enum {
-    // Registrador
-    REG,
+    // Registradores identificadores e literais
+    REG, ID, NUM_INT, STRING,
 
     // Instruções
     INS_LI, INS_LA, INS_MOVE,
@@ -24,18 +24,24 @@ typedef enum {
     INS_JR, INS_SYSCALL, INS_NOP,
 
     // Diretivas
-    DIR_DATA,
-    DIR_TEXT,
-    DIR_WORD,
-    DIR_HALF,
-    DIR_BYTE,
-    DIR_SPACE,
-    DIR_ASCII,
-    DIR_ASCIIZ,
-    DIR_GLOBL,
-    DIR_ALIGN
-} TipoToken;    
+    DIR_DATA, DIR_TEXT, DIR_WORD, DIR_HALF, DIR_BYTE,
+    DIR_SPACE, DIR_ASCII, DIR_ASCIIZ, DIR_GLOBL, DIR_ALIGN,
 
+    // Pontuação
+    SMB_COM, SMB_COL, SMB_OPA, SMB_CPA,
+
+    // Finalizadores
+    TK_EOF, EOL
+} TipoToken;
+
+
+// Estrutura de Parser
+// É meio que o cara que segura o scanner e decide o que fazer com ele
+typedef struct {
+    Token atual;
+    int erro;
+    unsigned nivel;
+} Parser;
 
 // Estrutura de árvore sintática
 // É como se fosse um nó de uma árvore binária
@@ -46,7 +52,7 @@ typedef struct AST {
     struct AST * dir;
 } AST;
 
-void AnaliseSintatica(FILE * lexOut, FILE * saidaSintatico, FILE * errSintatico);
+int AnaliseSintatica(FILE * lexOut, FILE * saidaSintatico, FILE * errSintatico);
 void extrairLexemas(FILE * lexOut, Token * destino);
 void exibirTokens(Token * tokenVector);
 
