@@ -134,8 +134,9 @@ AST * exp_programa(Parser * p) {
     AST * l = exp_secao(p);
 
     while (!p->erro) {
+        AST * r = exp_secao(p);
+        if (p->erro) { ast_free(l); ast_free(r); return NULL; }
         // CONTINUE
-        f (p->erro) { ast_free(l); ast_free(r); return NULL; }
     }
 }
 
