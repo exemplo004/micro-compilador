@@ -88,17 +88,67 @@ int extrairLexemas(FILE *in, Token *dst) {
     return i;
 }
 
-static AST *novo_noh(Parser *p, Token t, AST *l, AST *r) {
-    printf("implementar novo_noh()\n");
+// -------------------------------------------------------------
+// ---- FUNÇÕES DE ÁRVORES--------------------------------------
+// -------------------------------------------------------------
+
+// Cria um nó vazio de capacidade 1
+AST * novoNoh(char * display) {
+    AST * r = (AST *) malloc(sizeof(AST));
+
+    strcpy(r->display, display);
+    r->qtFilhos = 0;
+    r->capacidade = 1;
+    r->filhos = (AST **) malloc(r->capacidade * sizeof(AST *));
+
+    return r;
+}
+
+// Insere um novo nó no primeiro espaço disponível, da esquerda pra direita
+// Aumenta a capacidade do nó pai em 1 caso não tenha espaços disponíveis, e então insere o nó filho
+void inserirNoh(AST * pai, AST * filho) {
+    if (!filho) {
+        printf("Noh filho eh NULL. Abortando.\n");
+        return;
+    }
+
+    printf("inserindo noh em %s\n", pai->display); // DONKEY debug
+    if (pai->qtFilhos >= pai->capacidade) {
+        printf("Limite de filhos para o noh %s excedido. Ampliando capacidade...\n", pai->display);
+        pai->filhos = realloc(pai->filhos, ++pai->capacidade * sizeof(AST *));
+    }
+
+    pai->filhos[pai->qtFilhos++] = filho;
 }
 
 // Libera a memória de todos os nós de uma árvore
-void free_ast(AST * raiz) {
+void freeAST(AST * raiz) {
     if (!raiz) return;
-    free_ast(raiz->esq);
-    free_ast(raiz->dir);
-    free(raiz->lexema);
+
+    for (int i = 0; i < raiz->qtFilhos; i++) {
+        freeAST(raiz->filhos[i]);
+    }
+    
+    free(raiz->filhos);
     free(raiz);
+}
+
+void displayArvore(AST * raiz) {
+    if (!raiz) {
+        printf("{ }");
+        return;
+    }
+
+    if (raiz->qtFilhos == 0) {
+        printf("[ %s ]", raiz->display);
+        return;
+    }
+
+    for (int i = 0; i < raiz->qtFilhos; i++) {
+        displayArvore(raiz->filhos[i]);
+    }
+
+    printf("< %s >", raiz->display);
 }
 
 // Converte o nome do token (string) em TipoToken (enum) para comparações
@@ -203,7 +253,8 @@ void iniciar_ast(Token * tokens) {
     p.scanner = s;
     p.atual = p.scanner.tokens[p.scanner.i];
     
-    AST * raiz = exp_programa(&p);
+    AST * raiz = novoNoh("<start>");
+    inserirNoh(raiz, exp_programa(&p));
 
     // AST * raiz = exp_programa(&p);
 
@@ -226,32 +277,45 @@ void iniciar_ast(Token * tokens) {
 // <secao> { <secao> } TK_EOF
 AST * exp_programa(Parser * p) {
     printf("exp_programa()!\n"); // DONKEY function-call
-    AST * a = exp_secao(p);
-
-    while (!p->erro) {
-        AST * r = exp_secao(p);
-        if (p->erro) { free_ast(a); free_ast(r); return NULL; }
-    }
-
-    if (tipo(p->atual) == TK_EOF) {
-        return a;
-    }
+    AST * a = novoNoh("<programa>");
     
-    erro(p, "esperado TK_EOF");
-    return NULL;
+    p->nivel++;
+    inserirNoh(a, exp_secao(p));
+
+    while(!p->erro) {
+        inserirNoh(a, exp_secao(p));
+    }
+
+    if(!p->erro && tipo(p->atual) == TK_EOF) {
+        inserirNoh(a, novoNoh("TK_EOF"));
+        proximo_token(p);
+    } else {
+        erro(p, "esperado TK_EOF");
+        freeAST(a);
+        return NULL;
+    }
+
+    return a;
 }
 
 // <secao_dados> | <secao_codigo>
 AST * exp_secao(Parser * p) {
     printf("exp_secao()!\n"); // DONKEY function-call
+    if (p->erro) return NULL;
+    AST * a = novoNoh("<secao>");
+
+    AST * b = exp_secao_dados(p);
+    if (!b) {
+        b = exp_secao_codigo(p);
+    }
+
+    if (p->erro || !b) {
+        freeAST(a); freeAST(b);
+        return NULL;
+    }
 
     p->nivel++;
-    AST * a = exp_secao_dados(p);
-
-    if (!a) {
-        free_ast(a);
-        a = exp_secao_codigo(p);
-    }
+    inserirNoh(a, b);
     return a;
 }
 
@@ -259,25 +323,29 @@ AST * exp_secao(Parser * p) {
 AST * exp_secao_dados(Parser * p) {
     printf("exp_secao_dados()!\n"); // DONKEY function-call
     if (p->erro) return NULL;
-    if (p->nivel >= MAX_NESTING) {
-        erro(p, "limite de aninhamento excedido");
-        return NULL;
-    }
-
-    p->nivel++;
-    AST * a;
+    AST * a = novoNoh("<secao_dados>");
 
     if (tipo(p->atual) == DIR_DATA) {
-        a = novo(p, tipo(p), char * lexema, AST * l, AST * R); // CONTINUE start to use the new tree structure
+        p->nivel++;
+
+        char * display = malloc((strlen("DIR_DATA | ") + strlen(p->atual.lexema)) * sizeof(char) + 1);
+        sprintf(display, "DIR_DATA | %s", p->atual.lexema); // CONTINUE
+
+        inserirNoh(a, novoNoh(display));
         proximo_token(p);
 
         if (tipo(p->atual) == EOL) {
+            inserirNoh(a, novoNoh(display));
             proximo_token(p);
-            a = exp_linha_dados(p);
+        } else {
+            printf("EOL esperado. <secao_dados> invahlida");
+            return NULL;
         }
+    } else {
+        printf("DIR_DATA esperado. <secao_dados> invahlida");
+        return NULL;
     }
 
-    p->nivel--;
     return a;
 }
 

@@ -35,8 +35,7 @@ typedef enum {
     TK_EOF, EOL
 } TipoToken;
 
-typedef struct
-{
+typedef struct {
     Token * tokens;
     int i;
 } Scanner;
@@ -51,12 +50,11 @@ typedef struct {
 } Parser;
 
 // Estrutura de árvore sintática
-// É como se fosse um nó de uma árvore binária
 typedef struct AST {
-    TipoToken tipo;
-    char * lexema;
-    struct AST * esq;
-    struct AST * dir;
+    char * display;
+    struct AST ** filhos;
+    int qtFilhos;
+    int capacidade;
 } AST;
 
 int AnaliseSintatica(FILE * lexOut, FILE * saidaSintatico, FILE * errSintatico);
