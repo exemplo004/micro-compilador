@@ -96,7 +96,9 @@ int extrairLexemas(FILE *in, Token *dst) {
 AST * novoNoh(char * display) {
     AST * r = (AST *) malloc(sizeof(AST));
 
+    r->display = malloc(strlen(display) + 1);
     strcpy(r->display, display);
+
     r->qtFilhos = 0;
     r->capacidade = 1;
     r->filhos = (AST **) malloc(r->capacidade * sizeof(AST *));
@@ -129,6 +131,7 @@ void freeAST(AST * raiz) {
         freeAST(raiz->filhos[i]);
     }
     
+    free(raiz->display);
     free(raiz->filhos);
     free(raiz);
 }
@@ -224,24 +227,23 @@ static void erro(Parser *p, const char *mensagem) {
 }
 
 void proximo_token(Parser * p) {    
-    printf("proximo_token():\n\ti: %i\ttoken atual: %s\n", p->scanner.i, p->atual.nome); // DONKEY
     if (p->erro) return;
-
+    
     if (p->scanner.i >= MAX_TOKENS || p->scanner.i < 0 ) {
         erro(p, "Quantidade mahxima de tokens excedida\n");
         exit(p->scanner.i);
     }
-
+    
     // Aborta se o nome do token atual está vazio
     if (!strcmp(&p->scanner.tokens[p->scanner.i].nome[0], "")) {
         erro(p, "Token vazio encontrado\n");
         exit(p->scanner.i);
     }
-
+    
     // Incrementa cursor e entrega o novo token ao parser
     p->scanner.i++;
     p->atual = p->scanner.tokens[p->scanner.i];
-    printf("proximo_token():\n\tnovo token: %s\n", p->atual.nome); // DONKEY
+    printf("NOVO TOKEN (%i)\t%s\n", p->scanner.i, p->atual.nome); // DONKEY
 }
 
 void iniciar_ast(Token * tokens) {
@@ -265,6 +267,13 @@ void iniciar_ast(Token * tokens) {
     // return raiz;
 }
 
+// Verifica se o token é capaz de iniciar uma derivação <linha_dados>
+int inicia_linha_dados(TipoToken t) {
+    return t == ID || t == DIR_ASCII || t == DIR_ASCII ||
+    t == DIR_WORD  || t == DIR_HALF  || t == DIR_BYTE ||
+    t == DIR_SPACE || t == DIR_ALIGN || t == DIR_GLOBL;
+}
+
 // Abaixo estão todas as funcões que teremos que implementar, organizadas de acordo com o pdf 4
 // As regras de derivação estão comentadas acima de cada função
 // -------------------------------------------------------------------
@@ -278,72 +287,78 @@ void iniciar_ast(Token * tokens) {
 AST * exp_programa(Parser * p) {
     printf("exp_programa()!\n"); // DONKEY function-call
     AST * a = novoNoh("<programa>");
+    if (!a) { erro(p, "memohria insuficiente em exp_programa()\n"); return NULL; }
     
-    p->nivel++;
-    inserirNoh(a, exp_secao(p));
+    do {
+        AST * b = exp_secao(p);
+        if (!b) {
+            erro(p, "<secao> esperado");
+            freeAST(a);
+            freeAST(b);
+            return NULL;
+        }
+        inserirNoh(a, b);
+        scanf("%d", &a->qtFilhos); // DONKEY WAIT FOR INPUT
+    } while (tipo(p->atual) != TK_EOF);
 
-    while(!p->erro) {
-        inserirNoh(a, exp_secao(p));
-    }
+    AST * c = novoNoh("TK_EOF");
+    if (!c) { erro(p, "memohria insuficiente em exp_programa()\n"); return NULL; }
 
-    if(!p->erro && tipo(p->atual) == TK_EOF) {
-        inserirNoh(a, novoNoh("TK_EOF"));
-        proximo_token(p);
-    } else {
-        erro(p, "esperado TK_EOF");
-        freeAST(a);
-        return NULL;
-    }
-
+    inserirNoh(a, c);
     return a;
 }
 
 // <secao_dados> | <secao_codigo>
 AST * exp_secao(Parser * p) {
     printf("exp_secao()!\n"); // DONKEY function-call
-    if (p->erro) return NULL;
     AST * a = novoNoh("<secao>");
+    if (!a) { erro(p, "memohria insuficiente em exp_secao()"); return NULL; }
+    
+    AST * b;
+    if (tipo(p->atual) == DIR_DATA) { b = exp_secao_dados(p);}
+    else if (tipo(p->atual) == DIR_TEXT) { b = exp_secao_codigo(p);}
+    else { erro(p, "esperado DIR_DATA ou DIR_TEXT"); freeAST(a); return NULL; }
 
-    AST * b = exp_secao_dados(p);
-    if (!b) {
-        b = exp_secao_codigo(p);
+    if (b != NULL && !p->erro) {
+        inserirNoh(a, b);
+        return a;
     }
 
-    if (p->erro || !b) {
-        freeAST(a); freeAST(b);
-        return NULL;
-    }
-
-    p->nivel++;
-    inserirNoh(a, b);
-    return a;
+    erro(p, "esperado <secao_dados> ou <secao_codigo>");
+    freeAST(a); freeAST(b);
+    return NULL;
 }
 
 // .data" EOL { <linha_dados> }
 AST * exp_secao_dados(Parser * p) {
     printf("exp_secao_dados()!\n"); // DONKEY function-call
-    if (p->erro) return NULL;
     AST * a = novoNoh("<secao_dados>");
+    if (!a) { erro(p, "memohria insuficiente em exp_secao_dados()"); return NULL; }
 
-    if (tipo(p->atual) == DIR_DATA) {
-        p->nivel++;
-
-        char * display = malloc((strlen("DIR_DATA | ") + strlen(p->atual.lexema)) * sizeof(char) + 1);
-        sprintf(display, "DIR_DATA | %s", p->atual.lexema); // CONTINUE
-
-        inserirNoh(a, novoNoh(display));
-        proximo_token(p);
-
-        if (tipo(p->atual) == EOL) {
-            inserirNoh(a, novoNoh(display));
-            proximo_token(p);
-        } else {
-            printf("EOL esperado. <secao_dados> invahlida");
-            return NULL;
-        }
-    } else {
-        printf("DIR_DATA esperado. <secao_dados> invahlida");
+    if (tipo(p->atual) != DIR_DATA) {
+        erro(p, "DIR_DATA esperado");
+        freeAST(a);
         return NULL;
+    }
+    AST * b = novoNoh("DIR_DATA");
+    if (!b) { erro(p, "memohria insuficiente em exp_secao_dados()"); freeAST(a); return NULL; }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    if(tipo(p->atual) != EOL) {
+        erro(p, "EOL esperado");
+        freeAST(a); freeAST(b);
+        return NULL;
+    }
+    b = novoNoh("EOL");
+    if (!b) { erro(p, "memohria insuficiente em exp_secao_dados()"); freeAST(a); freeAST(b); return NULL; }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    while (inicia_linha_dados(tipo(p->atual))) {
+        b = exp_linha_dados(p);
+        if (!b) { freeAST(b); return NULL; }
+        inserirNoh(a, b);
     }
 
     return a;
@@ -356,7 +371,7 @@ AST * exp_secao_codigo(Parser * p) {
 }
 
 // <rotulo> [ <diretiva_dados> ] EOL | <diretiva_dados> EOL | <diretiva_global> EOL
-AST * exp_linha_dados(Parser * p) {
+AST * exp_linha_dados(Parser * p) { // CONTINUE
     printf("implementar função exp_linha_dados\n"); // TODO
     exit(1);
 }
