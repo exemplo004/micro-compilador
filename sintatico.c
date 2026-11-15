@@ -114,7 +114,7 @@ void inserirNoh(AST * pai, AST * filho) {
         return;
     }
 
-    printf("inserindo noh em %s\n", pai->display); // DONKEY debug
+    printf("inserindo noh %s em %s\n", filho->display, pai->display); // DONKEY debug
     if (pai->qtFilhos >= pai->capacidade) {
         printf("Limite de filhos para o noh %s excedido. Ampliando capacidade...\n", pai->display);
         pai->filhos = realloc(pai->filhos, ++pai->capacidade * sizeof(AST *));
@@ -243,7 +243,7 @@ void proximo_token(Parser * p) {
     // Incrementa cursor e entrega o novo token ao parser
     p->scanner.i++;
     p->atual = p->scanner.tokens[p->scanner.i];
-    printf("NOVO TOKEN (%i)\t%s\n", p->scanner.i, p->atual.nome); // DONKEY
+    printf("NOVO TOKEN (%i)\t%s -- %s\n", p->scanner.i, p->atual.nome, p->atual.lexema); // DONKEY
 }
 
 void iniciar_ast(Token * tokens) {
@@ -269,10 +269,12 @@ void iniciar_ast(Token * tokens) {
 
 // Verifica se o token é capaz de iniciar uma derivação <linha_dados>
 int inicia_linha_dados(TipoToken t) {
-    return t == ID || t == DIR_ASCII || t == DIR_ASCII ||
+    return t == ID || t == DIR_ASCII || t == DIR_ASCIIZ ||
     t == DIR_WORD  || t == DIR_HALF  || t == DIR_BYTE ||
     t == DIR_SPACE || t == DIR_ALIGN || t == DIR_GLOBL;
 }
+
+int inicia_diretiva_dados(TipoToken t) { return inicia_linha_dados(t) && t != ID && t != DIR_GLOBL; }
 
 // Abaixo estão todas as funcões que teremos que implementar, organizadas de acordo com o pdf 4
 // As regras de derivação estão comentadas acima de cada função
@@ -285,7 +287,7 @@ int inicia_linha_dados(TipoToken t) {
 
 // <secao> { <secao> } TK_EOF
 AST * exp_programa(Parser * p) {
-    printf("exp_programa()!\n"); // DONKEY function-call
+    printf("\x1b[33mexp_programa()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<programa>");
     if (!a) { erro(p, "memohria insuficiente em exp_programa()\n"); return NULL; }
     
@@ -310,7 +312,7 @@ AST * exp_programa(Parser * p) {
 
 // <secao_dados> | <secao_codigo>
 AST * exp_secao(Parser * p) {
-    printf("exp_secao()!\n"); // DONKEY function-call
+    printf("\x1b[33mexp_secao()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<secao>");
     if (!a) { erro(p, "memohria insuficiente em exp_secao()"); return NULL; }
     
@@ -325,29 +327,31 @@ AST * exp_secao(Parser * p) {
     }
 
     erro(p, "esperado <secao_dados> ou <secao_codigo>");
-    freeAST(a); freeAST(b);
+    freeAST(a);
     return NULL;
 }
 
 // .data" EOL { <linha_dados> }
 AST * exp_secao_dados(Parser * p) {
-    printf("exp_secao_dados()!\n"); // DONKEY function-call
+    printf("\x1b[33mexp_secao_dados()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<secao_dados>");
     if (!a) { erro(p, "memohria insuficiente em exp_secao_dados()"); return NULL; }
 
+    AST * b;
+    
     if (tipo(p->atual) != DIR_DATA) {
         erro(p, "DIR_DATA esperado");
         freeAST(a);
         return NULL;
     }
-    AST * b = novoNoh("DIR_DATA");
+    b = novoNoh("DIR_DATA");
     if (!b) { erro(p, "memohria insuficiente em exp_secao_dados()"); freeAST(a); return NULL; }
     inserirNoh(a, b);
     proximo_token(p);
 
     if(tipo(p->atual) != EOL) {
         erro(p, "EOL esperado");
-        freeAST(a); freeAST(b);
+        freeAST(a);
         return NULL;
     }
     b = novoNoh("EOL");
@@ -371,9 +375,52 @@ AST * exp_secao_codigo(Parser * p) {
 }
 
 // <rotulo> [ <diretiva_dados> ] EOL | <diretiva_dados> EOL | <diretiva_global> EOL
-AST * exp_linha_dados(Parser * p) { // CONTINUE
-    printf("implementar função exp_linha_dados\n"); // TODO
-    exit(1);
+AST * exp_linha_dados(Parser * p) {
+    printf("\x1b[33mexp_linha_dados()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<linha_dados>");
+    if (!a) { erro(p, "memohria insuficiente em exp_linha_dados()"); return NULL; }
+
+    AST * b;
+
+    // Verificando qual o novo nó baseado no token atual
+    if (tipo(p->atual) == ID) { // Verificando <rotulo>
+        b = exp_rotulo(p);
+        if (b != NULL && !p->erro) inserirNoh(a, b);
+        else return NULL;
+
+        if (inicia_diretiva_dados(tipo(p->atual))) {
+            b = exp_diretiva_dados(p);
+            if (b != NULL && !p->erro) inserirNoh(a, b);
+            else return NULL;
+        }
+    }
+    else if (inicia_diretiva_dados(tipo(p->atual))) { // Verificando <diretiva_dados>
+        b = exp_diretiva_dados(p);
+        if (b != NULL && !p->erro) inserirNoh(a, b);
+        else return NULL;
+    }
+    else if (tipo(p->atual) == DIR_GLOBL) { // Verificando <diretiva_global>
+        b = exp_diretiva_global(p);
+        if (b != NULL && !p->erro) inserirNoh(a, b);
+        else return NULL;
+    } else {
+        erro(p, "esperado ID, ou <diretiva_dados>, ou DIR_GLOBL");
+        freeAST(a);
+        return NULL;
+    }
+
+    // Verificando EOL
+    if (tipo(p->atual) != EOL) {
+        erro(p, "EOL esperado");
+        freeAST(a);
+        return NULL;
+    }
+    b = novoNoh("EOL");
+    if (!b) { erro(p, "memohria insuficiente em exp_secao_dados()"); freeAST(a); return NULL; }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    return a;
 }
 
 // <rotulo> [ <instrucao> ] EOL | <instrucao> EOL | <diretiva_global> EOL
@@ -384,8 +431,27 @@ AST * exp_linha_codigo(Parser * p) {
 
 // ID ":"
 AST * exp_rotulo(Parser * p) {
-    printf("implementar função exp_rotulo\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_rotulo()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<rotulo>");
+    if (!a) { erro(p, "memohria insuficiente em exp_rotulo()"); return NULL; }
+
+    // exp_rotulo() só é chamada a partir do token ID, então ele já é esperado
+    AST * b = novoNoh("ID");
+    if(!b) { erro(p, "memohria insuficiente em exp_rotulo()"); freeAST(a); return NULL; }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    // Verificando ":"
+    if (tipo(p->atual) != SMB_COL) {
+        erro(p, "esperado \":\"");
+        freeAST(a); return NULL;
+    }
+    b = novoNoh("SMB_COL");
+    if(!b) { erro(p, "memohria insuficiente em exp_rotulo()"); freeAST(a); return NULL; }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    return a;
 }
 
 // ".globl" ID
@@ -398,7 +464,7 @@ AST * exp_diretiva_global(Parser * p) {
 // <diretiva_inteiros> <lista_inteiros> | <diretiva_string> STRING | ".space" NUM_INT | ".align" NUM_INT
 AST * exp_diretiva_dados(Parser * p) {
     printf("implementar função exp_diretiva_dados\n"); // TODO
-    exit(1);
+    exit(1); // CONTINUE
 }
 
 // ".word" | ".half" | ".byte"
