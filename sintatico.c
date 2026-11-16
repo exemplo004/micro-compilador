@@ -3,9 +3,6 @@
 #include <string.h>
 #include "sintatico.h"
 
-// TODO: fazer uma função que compare a string nome de um token com o enum TipoToken
-// !! Ver função nome_token() em ./materiais/lexico-sintatico-prof/lexico.c
-
 // Funcão principal do analisador
 int AnaliseSintatica(FILE * tokens, FILE * arvore, FILE * erros) {
     Token vetorTokens[MAX_TOKENS] = { 0 };
