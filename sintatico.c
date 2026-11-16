@@ -463,8 +463,52 @@ AST * exp_diretiva_global(Parser * p) {
 // ---- 2.3. Declarações de dados
 // <diretiva_inteiros> <lista_inteiros> | <diretiva_string> STRING | ".space" NUM_INT | ".align" NUM_INT
 AST * exp_diretiva_dados(Parser * p) {
-    printf("implementar função exp_diretiva_dados\n"); // TODO
-    exit(1); // CONTINUE
+    printf("\x1b[33mexp_diretiva_dados()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<diretiva_dados>");
+    if (!a) { erro(p, "memohria insuficiente em exp_diretiva_dados()"); return NULL; }
+
+    AST * b;
+    if (tipo(p->atual) == DIR_WORD || tipo(p->atual) == DIR_HALF || tipo(p->atual) == DIR_BYTE) { // Verificando <diretiva_inteiros> <lista_inteiros>
+        b = exp_diretiva_inteiros(p);
+        if (!p->erro && b != NULL) { inserirNoh(a, b); }
+        else return NULL;
+
+        b = exp_lista_inteiros(p);
+        if (!p->erro && b != NULL) { inserirNoh(a, b); }
+        else { freeAST(a); return NULL; }
+    } else if (tipo(p->atual) == DIR_ASCII || tipo(p->atual) == DIR_ASCIIZ) { // Verificando <diretiva_string> STRING
+        b = exp_diretiva_string(p);
+        if (!p->erro && b != NULL) { inserirNoh(a, b); }
+        else return NULL;
+
+        if (tipo(p->atual) != STRING) {
+            erro(p, "esperado STRING");
+            freeAST(a); return NULL;
+        } else {
+            b = novoNoh("STRING");
+            if (b != NULL) { inserirNoh(a, b); proximo_token(p); }
+            else { freeAST(a); return NULL; }
+        }
+    } else if (tipo(p->atual) == DIR_SPACE || tipo(p->atual) == DIR_ALIGN) { // Verificando ".space" NUM_INT ou ".align" NUM_INT
+        b = tipo(p->atual) == DIR_SPACE ? novoNoh("DIR_SPACE") : novoNoh("DIR_ALIGN");
+        if (b != NULL) { inserirNoh(a, b); proximo_token(p); }
+        else { freeAST(a); return NULL; }
+        
+        if (tipo(p->atual) != NUM_INT) {
+            erro(p, "esperado NUM_INT");
+            freeAST(a); return NULL;
+        } else {
+            b = novoNoh("NUM_INT");
+            if (b != NULL) { inserirNoh(a, b); proximo_token(p); }
+            else { freeAST(a); return NULL; }
+        }
+    } else {
+        erro(p, "esperado <diretiva_inteiros>, ou <diretiva_string>, ou \".space\", ou \".align\"");
+        freeAST(a);
+        return NULL;
+    }
+
+    return a;
 }
 
 // ".word" | ".half" | ".byte"
