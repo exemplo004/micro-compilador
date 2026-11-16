@@ -510,20 +510,69 @@ AST * exp_diretiva_dados(Parser * p) {
 
 // ".word" | ".half" | ".byte"
 AST * exp_diretiva_inteiros(Parser * p) {
-    printf("implementar função exp_diretiva_inteiros\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_diretiva_inteiros()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<diretiva_inteiros>");
+    if (!a) { erro(p, "memohria insuficiente em exp_diretiva_inteiros()"); return NULL; }
+
+    AST * b = tipo(p->atual) == DIR_WORD ? novoNoh("DIR_WORD") :
+    tipo(p->atual) == DIR_HALF ? novoNoh("DIR_HALF") :
+    novoNoh("DIR_BYTE");
+
+    if (!b) {
+        erro(p, "memohria insuficiente em exp_diretiva_inteiros()");
+        freeAST(a); freeAST(b); return NULL;
+    }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    return a;
 }
 
 // NUM_INT { "," NUM_INT }
 AST * exp_lista_inteiros(Parser * p) {
-    printf("implementar função exp_lista_inteiros\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_lista_inteiros()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<lista_inteiros>");
+    
+    AST * b = tipo(p->atual) == NUM_INT ? novoNoh("NUM_INT") : NULL;
+    if (!a || !b) {
+        erro(p, "memohria insuficiente em exp_lista_inteiros() ou NUM_INT esperado");
+        freeAST(a); freeAST(b);
+        return NULL;
+    }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    // Verificando inteiros adicionais
+    while (tipo(p->atual) == SMB_COM) {
+        b = novoNoh("SMB_COM");
+        if (b != NULL) { inserirNoh(a, b); proximo_token(p); }
+        else { freeAST(a); freeAST(b); return NULL; }
+
+        b = tipo(p->atual) == NUM_INT ? novoNoh("NUM_INT") : NULL;
+        if(!b) {
+            erro(p, "NUM_INT esperado");
+            freeAST(a); return NULL;
+        } else { inserirNoh(a, b); proximo_token(p); }
+    }
+
+    return a;
 }
 
 // ".ascii" | ".asciiz"
 AST * exp_diretiva_string(Parser * p) {
-    printf("implementar função exp_diretiva_string\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_diretiva_string()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<diretiva_string>");
+    if (!a) { erro(p, "memohria insuficiente em exp_diretiva_string()"); return NULL; }
+
+    AST * b = tipo(p->atual) == DIR_ASCII ? novoNoh("DIR_ASCII") : novoNoh("DIR_ASCIIZ");
+    if (!b) {
+        erro(p, "memohria insuficiente em exp_diretiva_string()");
+        freeAST(a); freeAST(b); return NULL;
+    }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    return a;
 }
 
 // 
