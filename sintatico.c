@@ -663,25 +663,36 @@ AST * exp_diretiva_string(Parser * p) {
 
 // 
 
-// ---- 2.4. Instruções
-// <instrucao_tres_registradores>
-// | <instrucao_dois_registradores>
-// | <instrucao_um_registrador>
-// | <instrucao_imediato>
-// | <instrucao_deslocamento>
-// | <instrucao_li>
-// | <instrucao_la>
-// | <instrucao_memoria>
-// | <instrucao_desvio>
-// | <instrucao_salto>
-// | <instrucao_sem_operandos>
-// sim, é tudo isso mesmo
+// ---- 2.4. Instruções ----
+
+// <instrucao_tres_registradores> | <instrucao_dois_registradores> | <instrucao_um_registrador> | <instrucao_imediato> | <instrucao_deslocamento> | <instrucao_li> | <instrucao_la> | <instrucao_memoria> | <instrucao_desvio> | <instrucao_salto> | <instrucao_sem_operandos>
 AST * exp_instrucao(Parser * p) {
     printf("\x1b[33mexp_instrucao()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao()"); return NULL; }
 
-    // CONTINUE
+    AST * b;
+
+    if      (inicia_op_tres_registradores(tipo(p->atual)))               b = exp_instrucao_tres_registradores(p);
+    else if (inicia_op_dois_registradores(tipo(p->atual)))               b = exp_instrucao_dois_registradores(p);
+    else if (inicia_op_um_registrador(tipo(p->atual)))                   b = exp_instrucao_um_registrador(p);
+    else if (tipo(p->atual) == INS_ADDI)                                 b = exp_instrucao_imediato(p);
+    else if (inicia_op_deslocamento(tipo(p->atual)))                     b = exp_instrucao_deslocamento(p);
+    else if (tipo(p->atual) == INS_LI)                                   b = exp_instrucao_li(p);
+    else if (tipo(p->atual) == INS_LA)                                   b = exp_instrucao_la(p);
+    else if (inicia_op_memoria(tipo(p->atual)))                          b = exp_instrucao_memoria(p);
+    else if (inicia_op_desvio(tipo(p->atual)))                           b = exp_instrucao_desvio(p);
+    else if (inicia_op_salto(tipo(p->atual)))                            b = exp_instrucao_salto(p);
+    else if (tipo(p->atual) == INS_SYSCALL || tipo(p->atual) == INS_NOP) b = exp_instrucao_sem_operandos(p);
+    else {
+        erro(p, "esperado algum token de instrussaum");
+        freeAST(a); return NULL;
+    }
+
+    if(p->erro || !b) { freeAST(a); freeAST(b); return NULL; }
+    inserirNoh(a, b);
+
+    return a;
 }
 
 // <op_tres_registradores> REG "," REG "," REG
@@ -740,8 +751,25 @@ AST * exp_op_deslocamento(Parser * p) {
 
 // "li" REG "," NUM_INT
 AST * exp_instrucao_li(Parser * p) {
-    printf("implementar função exp_instrucao_li\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_instrucao_li()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<instrucao_li>");
+    AST * b = novoNoh("INS_LI");
+    if (!a || !b) { erro(p, "memohria insuficiente em exp_instrucao_li()"); return NULL; }
+    inserirNoh(a, b); proximo_token(p);
+
+    AST *c, *d, *e;
+    c = tipo(p->atual) == REG     ? novoNoh("REG")     : NULL; proximo_token(p);
+    d = tipo(p->atual) == SMB_COM ? novoNoh("SMB_COM") : NULL; proximo_token(p);
+    e = tipo(p->atual) == NUM_INT ? novoNoh("NUM_INT") : NULL; proximo_token(p);
+
+    if (!c || !d || !e) {
+        erro(p, "erro ao criar derivassaum <instrucao_li>");
+        freeAST(c); freeAST(d); freeAST(e);
+        return NULL;
+    }
+    inserirNoh(a, c); inserirNoh(a, d); inserirNoh(a, e);
+
+    return a; // CONTINUE maybe this function isn't the best approach, but I want to shake things up for now
 }
 
 // "la" REG "," ID
