@@ -273,6 +273,28 @@ int inicia_linha_dados(TipoToken t) {
 
 int inicia_diretiva_dados(TipoToken t) { return inicia_linha_dados(t) && t != ID && t != DIR_GLOBL; }
 
+// Verifica o token é capaz de iniciar derivações de operações
+// Serão chamadas abaixo, em inicia_instrucao()
+int inicia_op_um_registrador(TipoToken t)     { return t == INS_MFLO || t == INS_MFHI || t == INS_JR; }
+int inicia_op_dois_registradores(TipoToken t) { return t == INS_MOVE || t == INS_DIV; }
+int inicia_op_tres_registradores(TipoToken t) { return t == INS_ADD || t == INS_ADDU || t == INS_SUB || t ==  INS_SUBU || t == INS_MUL || t == INS_SLT || t == INS_AND || t == INS_OR || t == INS_XOR || t == INS_NOR; }
+int inicia_op_deslocamento(TipoToken t)       { return t == INS_SLL || t == INS_SRL; }
+int inicia_op_memoria(TipoToken t)            { return t == INS_LW || t == INS_SW || t == INS_LB || t == INS_SH || t == INS_SB || t == INS_LH; }
+int inicia_op_desvio(TipoToken t)             { return t == INS_BEQ || t == INS_BNE || t == INS_BLT || t == INS_BLE || t == INS_BGT || t == INS_BGE; }
+int inicia_op_salto(TipoToken t)              { return t == INS_J || t == INS_JAL; }
+
+// Verifica o token é capaz de iniciar uma derivação <instrucao>, utilizando as funções acima
+int inicia_instrucao(TipoToken t) {
+    return inicia_op_um_registrador(t) ||
+    inicia_op_dois_registradores(t) ||
+    inicia_op_tres_registradores(t) ||
+    inicia_op_deslocamento(t) ||
+    inicia_op_memoria(t) ||
+    inicia_op_desvio(t) ||
+    inicia_op_salto(t) ||
+    t == INS_ADDI || t == INS_LI || t == INS_LA || t == INS_SYSCALL || t == INS_NOP;
+}
+
 // Abaixo estão todas as funcões que teremos que implementar, organizadas de acordo com o pdf 4
 // As regras de derivação estão comentadas acima de cada função
 // -------------------------------------------------------------------
