@@ -154,7 +154,6 @@ void displayArvore(AST * raiz) {
 // Converte o nome do token (string) em TipoToken (enum) para comparações
 TipoToken tipo(Token t) {
     if (!strcmp(t.nome, "REG"))         return REG;
-    if (!strcmp(t.nome, "REG"))         return REG;
     if (!strcmp(t.nome, "ID"))          return ID;
     if (!strcmp(t.nome, "NUM_INT"))     return NUM_INT;
     if (!strcmp(t.nome, "STRING"))      return STRING;
@@ -215,6 +214,69 @@ TipoToken tipo(Token t) {
     exit(1);
 }
 
+// Converte o TipoToken (enum) uma string
+char * nome(TipoToken t) {
+    if (t == REG)         return "REG";
+    if (t == ID)          return "ID";
+    if (t == NUM_INT)     return "NUM_INT";
+    if (t == STRING)      return "STRING";
+    if (t == INS_LI)      return "INS_LI";
+    if (t == INS_LA)      return "INS_LA";
+    if (t == INS_MOVE)    return "INS_MOVE";
+    if (t == INS_LW)      return "INS_LW";
+    if (t == INS_SW)      return "INS_SW";
+    if (t == INS_LB)      return "INS_LB";
+    if (t == INS_SB)      return "INS_SB";
+    if (t == INS_LH)      return "INS_LH";
+    if (t == INS_SH)      return "INS_SH";
+    if (t == INS_ADD)     return "INS_ADD";
+    if (t == INS_ADDI)    return "INS_ADDI";
+    if (t == INS_ADDU)    return "INS_ADDU";
+    if (t == INS_SUB)     return "INS_SUB";
+    if (t == INS_SUBU)    return "INS_SUBU";
+    if (t == INS_MUL)     return "INS_MUL";
+    if (t == INS_DIV)     return "INS_DIV";
+    if (t == INS_MFLO)    return "INS_MFLO";
+    if (t == INS_MFHI)    return "INS_MFHI";
+    if (t == INS_AND)     return "INS_AND";
+    if (t == INS_OR)      return "INS_OR";
+    if (t == INS_XOR)     return "INS_XOR";
+    if (t == INS_NOR)     return "INS_NOR";
+    if (t == INS_SLL)     return "INS_SLL";
+    if (t == INS_SRL)     return "INS_SRL";
+    if (t == INS_SLT)     return "INS_SLT";
+    if (t == INS_BEQ)     return "INS_BEQ";
+    if (t == INS_BNE)     return "INS_BNE";
+    if (t == INS_BLT)     return "INS_BLT";
+    if (t == INS_BLE)     return "INS_BLE";
+    if (t == INS_BGT)     return "INS_BGT";
+    if (t == INS_BGE)     return "INS_BGE";
+    if (t == INS_J)       return "INS_J";
+    if (t == INS_JAL)     return "INS_JAL";
+    if (t == INS_JR)      return "INS_JR";
+    if (t == INS_SYSCALL) return "INS_SYSCALL";
+    if (t == INS_NOP)     return "INS_NOP";
+    if (t == DIR_DATA)    return "DIR_DATA";
+    if (t == DIR_TEXT)    return "DIR_TEXT";
+    if (t == DIR_WORD)    return "DIR_WORD";
+    if (t == DIR_HALF)    return "DIR_HALF";
+    if (t == DIR_BYTE)    return "DIR_BYTE";
+    if (t == DIR_SPACE)   return "DIR_SPACE";
+    if (t == DIR_ASCII)   return "DIR_ASCII";
+    if (t == DIR_ASCIIZ)  return "DIR_ASCIIZ";
+    if (t == DIR_GLOBL)   return "DIR_GLOBL";
+    if (t == DIR_ALIGN)   return "DIR_ALIGN";
+    if (t == SMB_COM)     return "SMB_COM";
+    if (t == SMB_COL)     return "SMB_COL";
+    if (t == SMB_OPA)     return "SMB_OPA";
+    if (t == SMB_CPA)     return "SMB_CPA";
+    if (t == TK_EOF)      return "TK_EOF";
+    if (t == EOL)         return "EOL";
+    
+    printf("O tipo de token inserido naum foi reconhecido\n");
+    return NULL;
+}
+
 static void erro(Parser *p, const char *mensagem) {
     if (p->erro) return;
     fprintf(stderr, "Erro sintahtico na linha %d, coluna %d: %s; encontrado %s ('%s').\n",
@@ -241,6 +303,33 @@ void proximo_token(Parser * p) {
     p->scanner.i++;
     p->atual = p->scanner.tokens[p->scanner.i];
     printf("NOVO TOKEN (%i)\t%s -- %s\n", p->scanner.i, p->atual.nome, p->atual.lexema); // DONKEY
+}
+
+int consumir_terminal(Parser * p, AST * nohPai, TipoToken tipoEsperado, char * callerFunction) {
+    AST * nohFilho;
+    char * msgErro = (char *) malloc( (strlen("esperado ") + strlen(nome(tipoEsperado)) + 1) * sizeof(char) );
+    sprintf(msgErro, "esperado %s", nome(tipoEsperado));
+    
+    if (tipo(p->atual) != tipoEsperado) {
+        erro(p, msgErro);
+        freeAST(nohPai);
+        return 1;
+    }
+
+    char * msgMemoriaInsuficiente = (char *) malloc( (strlen("memohria insuficiente em ") + strlen(callerFunction) + 1) * sizeof(char) );
+    sprintf(msgMemoriaInsuficiente, "memohria insuficiente em %s", nome(tipoEsperado));
+
+    nohFilho = novoNoh(nome(tipoEsperado));
+
+    if(!nohFilho) {
+        erro(p, msgMemoriaInsuficiente);
+        freeAST(nohPai); freeAST(nohFilho);
+        return 2;
+    }
+
+    inserirNoh(nohPai, nohFilho);
+    proximo_token(p);
+    return 0;
 }
 
 void iniciar_ast(Token * tokens) {
@@ -697,8 +786,25 @@ AST * exp_instrucao(Parser * p) {
 
 // <op_tres_registradores> REG "," REG "," REG
 AST * exp_instrucao_tres_registradores(Parser * p) {
-    printf("implementar função exp_instrucao_tres_registradores\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_instrucao_tres_registradores()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<instrucao_tres_registradores>");
+    if (!a) { erro(p, "memohria insuficiente em exp_instrucao_tres_registradores()"); return NULL; }
+
+    AST * b = exp_op_tres_registradores(p);
+
+    if (p->erro || !b) { freeAST(a); freeAST(b); return NULL; }
+    inserirNoh(a, b);
+
+    // Verificando REG
+    if (consumir_terminal(p, a, REG, __func__)) return NULL;
+
+    // Verificando "," REG "," REG
+    for (int i = 0; i < 2; i++) {
+        if (consumir_terminal(p, a, SMB_COM, __func__)) return NULL;
+        if (consumir_terminal(p, a, REG, __func__)) return NULL;
+    }
+
+    return a;
 }
 
 // "add" | "addu" | "sub" | "subu" | "mul" | "and" | "or" | "xor" | "nor" | "slt"
@@ -750,7 +856,7 @@ AST * exp_op_deslocamento(Parser * p) {
 }
 
 // "li" REG "," NUM_INT
-AST * exp_instrucao_li(Parser * p) {
+AST * exp_instrucao_li(Parser * p) { // sei que não é a melhor função, mas tô testando umas coisas
     printf("\x1b[33mexp_instrucao_li()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_li>");
     AST * b = novoNoh("INS_LI");
@@ -769,7 +875,7 @@ AST * exp_instrucao_li(Parser * p) {
     }
     inserirNoh(a, c); inserirNoh(a, d); inserirNoh(a, e);
 
-    return a; // CONTINUE maybe this function isn't the best approach, but I want to shake things up for now
+    return a;
 }
 
 // "la" REG "," ID
