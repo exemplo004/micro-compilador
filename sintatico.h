@@ -5,6 +5,7 @@
 
 #define MAX_TOKENS 1024
 #define MAX_NESTING 256
+#define TREE_PREFIX_MAX 512
 
 typedef enum {
     // Registradores identificadores e literais
@@ -60,7 +61,9 @@ typedef struct AST {
 int AnaliseSintatica(FILE * lexOut, FILE * saidaSintatico, FILE * errSintatico);
 int extrairLexemas(FILE * lexOut, Token * destino);
 void exibirTokens(Token * tokenVector, int total);
-void iniciar_ast(Token * vetorTokens);
+
+AST * iniciar_ast(Token * vetorTokens);
+int display_tree(AST * raiz);
 
 // ---- EXPANSORES ----
 AST * exp_programa(Parser * p);

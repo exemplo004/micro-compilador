@@ -18,7 +18,8 @@ int AnaliseSintatica(FILE * tokens, FILE * arvore, FILE * erros) {
         return 1;
     }
 
-    iniciar_ast(&vetorTokens[0]);
+    AST * raiz = iniciar_ast(&vetorTokens[0]);
+    display_tree(raiz);
 
     //temporario
     return 0;
@@ -305,8 +306,13 @@ void proximo_token(Parser * p) {
     printf("NOVO TOKEN (%i)\t%s -- %s\n", p->scanner.i, p->atual.nome, p->atual.lexema); // DONKEY
 }
 
-int consumir_terminal(Parser * p, AST * nohPai, TipoToken tipoEsperado, char * callerFunction) {
+// Consome um token terminal, passando para o próximo ao fim da chamada
+// Retorna 0 em sucesso, 1 com erro de tipagem, 2  no caso de erro em alocação memória
+// Nos casos de erro, dá freeAST no nó pai
+int consumir_terminal(Parser * p, AST * nohPai, TipoToken tipoEsperado, const char * callerFunction) {
     AST * nohFilho;
+
+    // Preparando mensagem de erro de tipo
     char * msgErro = (char *) malloc( (strlen("esperado ") + strlen(nome(tipoEsperado)) + 1) * sizeof(char) );
     sprintf(msgErro, "esperado %s", nome(tipoEsperado));
     
@@ -316,11 +322,11 @@ int consumir_terminal(Parser * p, AST * nohPai, TipoToken tipoEsperado, char * c
         return 1;
     }
 
+    // Preparando mensagem de erro de alocação de memória
     char * msgMemoriaInsuficiente = (char *) malloc( (strlen("memohria insuficiente em ") + strlen(callerFunction) + 1) * sizeof(char) );
-    sprintf(msgMemoriaInsuficiente, "memohria insuficiente em %s", nome(tipoEsperado));
+    sprintf(msgMemoriaInsuficiente, "memohria insuficiente em %s", callerFunction);
 
     nohFilho = novoNoh(nome(tipoEsperado));
-
     if(!nohFilho) {
         erro(p, msgMemoriaInsuficiente);
         freeAST(nohPai); freeAST(nohFilho);
@@ -332,7 +338,7 @@ int consumir_terminal(Parser * p, AST * nohPai, TipoToken tipoEsperado, char * c
     return 0;
 }
 
-void iniciar_ast(Token * tokens) {
+AST * iniciar_ast(Token * tokens) {
     Scanner s = { tokens, 0 };
     printf("token[%i]: %s\n", s.i, tokens[s.i].nome); // DONKEY
 
@@ -350,7 +356,40 @@ void iniciar_ast(Token * tokens) {
     //     erro(&p, "esperado operador ou fim da expressao");
     // free(p.atual.lexema);
     // if (p.erro) { free_ast(raiz); return NULL; }
-    // return raiz;
+    return raiz;
+}
+
+static int display_tree_rec(AST * no, char * prefixo, int len, int eh_ultimo, int eh_raiz) {
+    int total = 1;
+
+    if (eh_raiz) printf("%s\n", no->display);
+    else         printf("%s%s%s\n", prefixo, eh_ultimo ? "`-- " : "|-- ", no->display);
+
+    int novoLen = len;
+    if (!eh_raiz) {
+        if (len + 4 >= TREE_PREFIX_MAX) {
+            printf("%s...\n", prefixo);
+            return total;
+        }
+        memcpy(prefixo + len, eh_ultimo ? "    " : "|   ", 4);
+        novoLen = len + 4;
+        prefixo[novoLen] = '\0';
+    }
+
+    for (int i = 0; i < no->qtFilhos; i++)
+        total += display_tree_rec(no->filhos[i], prefixo, novoLen, i == no->qtFilhos - 1, 0);
+
+    prefixo[len] = '\0';
+    return total;
+}
+
+int display_tree(AST * root) {
+    if (!root) {
+        printf("(arvore vazia)\n");
+        return 0;
+    }
+    char prefixo[TREE_PREFIX_MAX] = "";
+    return display_tree_rec(root, prefixo, 0, 1, 1);
 }
 
 // Verifica se o token é capaz de iniciar uma derivação <linha_dados>
