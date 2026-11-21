@@ -667,8 +667,14 @@ AST * exp_rotulo(Parser * p) {
 
 // ".globl" ID
 AST * exp_diretiva_global(Parser * p) {
-    printf("\x1b[31mimplementar função exp_diretiva_global\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_diretiva_global()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<diretiva_global>");
+    if (!a) { erro(p, "memohria insuficiente em exp_diretiva_global()"); return NULL; }
+
+    if(consumir_terminal(p, a, DIR_GLOBL, __func__)) return NULL;
+    if(consumir_terminal(p, a, ID, __func__)) return NULL;
+    
+    return a;
 }
 
 // ---- 2.3. Declarações de dados
@@ -840,7 +846,7 @@ AST * exp_instrucao_tres_registradores(Parser * p) {
     // Verificando "," REG "," REG
     for (int i = 0; i < 2; i++) {
         if (consumir_terminal(p, a, SMB_COM, __func__)) return NULL;
-        if (consumir_terminal(p, a, REG, __func__)) return NULL;
+        if (consumir_terminal(p, a, REG,     __func__)) return NULL;
     }
 
     return a;
@@ -871,44 +877,147 @@ AST * exp_op_tres_registradores(Parser * p) {
 
 // <op_dois_registradores> REG "," REG
 AST * exp_instrucao_dois_registradores(Parser * p) {
-    printf("\x1b[31mimplementar função exp_instrucao_dois_registradores\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_instrucao_dois_registradores()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<instrucao_dois_registradores>");
+    if (!a) { erro(p, "memohria insuficiente em exp_instrucao_dois_registradores()"); return NULL; }
+
+    AST * b = exp_op_dois_registradores(p);
+
+    if (p->erro || !b) { freeAST(a); freeAST(b); return NULL; }
+    inserirNoh(a, b);
+
+    // Verificando REG "," REG
+    if (consumir_terminal(p, a, REG,     __func__)
+    ||  consumir_terminal(p, a, SMB_COM, __func__)
+    ||  consumir_terminal(p, a, REG,     __func__)
+    ) return NULL;
+
+    return a;
 }
 
 // "move" | "div"
 AST * exp_op_dois_registradores(Parser * p) {
-    printf("\x1b[31mimplementar função exp_op_dois_registradores\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_op_dois_registradores()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<op_dois_registradores>");
+    if (!a) { erro(p, "memohria insuficiente em exp_op_dois_registradores()"); return NULL; }
+    
+    if (!inicia_op_dois_registradores(tipo(p->atual))) {
+        erro(p, "esperado <op_dois_registradores>");
+        freeAST(a); return NULL;
+    }
+
+    AST * b = novoNoh(p->atual.nome);
+    if (!b) {
+        erro(p, "memohria insuficiente em exp_op_dois_registradores()");
+        freeAST(a); freeAST(b);
+        return NULL;
+    }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    return a;
 }
 
 // <op_um_registrador> REG
 AST * exp_instrucao_um_registrador(Parser * p) {
-    printf("\x1b[31mimplementar função exp_instrucao_um_registrador\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_instrucao_um_registrador()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<instrucao_um_registrador>");
+    if (!a) { erro(p, "memohria insuficiente em exp_instrucao_um_registrador()"); return NULL; }
+
+    AST * b = exp_op_um_registrador(p);
+
+    if (p->erro || !b) { freeAST(a); freeAST(b); return NULL; }
+    inserirNoh(a, b);
+
+    // Verificando REG
+    if (consumir_terminal(p, a, REG,     __func__)) return NULL;
+
+    return a;
 }
 
 // "mflo" | "mfhi" | "jr"
 AST * exp_op_um_registrador(Parser * p) {
-    printf("\x1b[31mimplementar função exp_op_um_registrador\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_op_um_registrador()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<op_um_registrador>");
+    if (!a) { erro(p, "memohria insuficiente em exp_op_um_registrador()"); return NULL; }
+    
+    if (!inicia_op_um_registrador(tipo(p->atual))) {
+        erro(p, "esperado <op_um_registrador>");
+        freeAST(a); return NULL;
+    }
+
+    AST * b = novoNoh(p->atual.nome);
+    if (!b) {
+        erro(p, "memohria insuficiente em exp_op_um_registrador()");
+        freeAST(a); freeAST(b);
+        return NULL;
+    }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    return a;
 }
 
 // "addi" REG "," REG "," NUM_INT
 AST * exp_instrucao_imediato(Parser * p) {
-    printf("\x1b[31mimplementar função exp_instrucao_imediato\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_instrucao_imediato()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<instrucao_imediato>");
+    if (!a) { erro(p, "memohria insuficiente em exp_instrucao_imediato()"); return NULL; }
+
+    if(consumir_terminal(p, a, INS_ADDI, __func__)
+    || consumir_terminal(p, a, REG,      __func__)
+    || consumir_terminal(p, a, SMB_COM,  __func__)
+    || consumir_terminal(p, a, REG,      __func__)
+    || consumir_terminal(p, a, SMB_COM,  __func__)
+    || consumir_terminal(p, a, NUM_INT,  __func__)
+    ) return NULL;
+
+    return a;
 }
 
 // <op_deslocamento> REG "," REG "," NUM_INT
 AST * exp_instrucao_deslocamento(Parser * p) {
-    printf("\x1b[31mimplementar função exp_instrucao_deslocamento\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_instrucao_deslocamento()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<instrucao_deslocamento>");
+    if (!a) { erro(p, "memohria insuficiente em exp_instrucao_deslocamento()"); return NULL; }
+
+    AST * b = exp_op_deslocamento(p);
+
+    if (p->erro || !b) { freeAST(a); freeAST(b); return NULL; }
+    inserirNoh(a, b);
+
+    // Verificando REG "," REG "," NUM_INT
+    if (consumir_terminal(p, a, REG,     __func__)
+    ||  consumir_terminal(p, a, SMB_COM, __func__)
+    ||  consumir_terminal(p, a, REG,     __func__)
+    ||  consumir_terminal(p, a, SMB_COM, __func__)
+    ||  consumir_terminal(p, a, NUM_INT, __func__)
+    ) return NULL;
+
+    return a;
 }
 
 // "sll" | "srl"
 AST * exp_op_deslocamento(Parser * p) {
-    printf("\x1b[31mimplementar função exp_op_deslocamento\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_op_deslocamento()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<op_deslocamento>");
+    if (!a) { erro(p, "memohria insuficiente em exp_op_deslocamento()"); return NULL; }
+    
+    if (!inicia_op_deslocamento(tipo(p->atual))) {
+        erro(p, "esperado INS_SLL ou INS_SRL");
+        freeAST(a); return NULL;
+    }
+
+    AST * b = novoNoh(p->atual.nome);
+    if (!b) {
+        erro(p, "memohria insuficiente em exp_op_deslocamento()");
+        freeAST(a); freeAST(b);
+        return NULL;
+    }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    return a;
 }
 
 // "li" REG "," NUM_INT
@@ -1027,10 +1136,6 @@ AST * exp_instrucao_desvio(Parser * p) {
     AST * a = novoNoh("<instrucao_desvio>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_desvio()"); return NULL; }
 
-    if (!inicia_op_desvio(tipo(p->atual))) {
-        erro(p, "<op_desvio> esperado");
-        freeAST(a); return NULL;
-    }
     AST * b = exp_op_desvio(p);
 
     if (!p->erro && b != NULL) inserirNoh(a, b);
@@ -1049,26 +1154,86 @@ AST * exp_instrucao_desvio(Parser * p) {
 
 // "beq" | "bne" | "blt" | "ble" | "bgt" | "bge"
 AST * exp_op_desvio(Parser * p) {
-    printf("\x1b[31mimplementar função exp_op_desvio\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_op_desvio()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<op_desvio>");
+    if (!a) { erro(p, "memohria insuficiente em exp_op_desvio()"); return NULL; }
+    
+    if (!inicia_op_desvio(tipo(p->atual))) {
+        erro(p, "esperado INS_SLL ou INS_SRL");
+        freeAST(a); return NULL;
+    }
+
+    AST * b = novoNoh(p->atual.nome);
+    if (!b) {
+        erro(p, "memohria insuficiente em exp_op_desvio()");
+        freeAST(a); freeAST(b);
+        return NULL;
+    }
+    inserirNoh(a, b);
+    proximo_token(p);
+
+    return a;
 }
 
 // <op_salto> ID
 AST * exp_instrucao_salto(Parser * p) {
-    printf("\x1b[31mimplementar função exp_instrucao_salto\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_instrucao_salto()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<instrucao_salto>");
+    if (!a) { erro(p, "memohria insuficiente em exp_instrucao_salto()"); return NULL; }
+
+    AST * b = exp_op_salto(p);
+
+    if (!p->erro && b != NULL) inserirNoh(a, b);
+    else { freeAST(a); freeAST(b); return NULL; }
+
+    // Verificando ID
+    if (consumir_terminal(p, a, ID, __func__)) return NULL;
+
+    return a;
 }
 
 // "j" | "jal"
 AST * exp_op_salto(Parser * p) {
-    printf("\x1b[31mimplementar função exp_op_salto\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_op_salto()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("<op_salto>");
+    if (!a) { erro(p, "memohria insuficiente em exp_op_salto()"); return NULL; }
+
+    if (!inicia_op_salto(tipo(p->atual))) {
+        erro(p, "esperado INS_J ou INS_JAL");
+        freeAST(a); return NULL;
+    }
+
+    AST * b = novoNoh(p->atual.nome);
+    if (!b) {
+        erro(p, "memohria insuficiente em exp_op_salto()");
+       freeAST(a); freeAST(b);
+        return NULL;
+    }
+    inserirNoh(a, b); proximo_token(p);
+
+    return a;
 }
 
-// <instrucao_sem_operandos> ::= “syscall” | “nop”
+// “syscall” | “nop”
 AST * exp_instrucao_sem_operandos(Parser * p) {
-    printf("\x1b[31mimplementar função exp_instrucao_sem_operandos\x1b[37m\n"); // TODO
-    exit(1);
+    printf("\x1b[33mexp_instrucao_sem_operandos()!\x1b[37m\n"); // DONKEY function-call
+    AST * a = novoNoh("_instrucao_sem_operandos>");
+    if (!a) { erro(p, "memohria insuficiente em exp_instrucao_sem_operandos()"); return NULL; }
+
+    if (tipo(p->atual) != INS_SYSCALL || tipo(p->atual) != INS_NOP) {
+        erro(p, "INS_SYSCALL ou INS_NOP esperado");
+        freeAST(a); return NULL;
+    }
+
+    AST * b = novoNoh(p->atual.nome);
+    if (!b) {
+        erro(p, "memohria insuficiente em exp_instrucao_sem_operandos()");
+        freeAST(a); freeAST(b);
+        return NULL;
+    }
+    inserirNoh(a, b); proximo_token(p);
+    
+    return a;
 }
 
 void exibirTokens(Token * t, int total) {
