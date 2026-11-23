@@ -3,6 +3,36 @@
 #include <string.h>
 #include "sintatico.h"
 
+int dot_rec(AST *t, FILE *f, int *nivel) {
+    int atual = (*nivel)++;
+
+    fprintf(f, "  n%i [label=\"%s\"];\n", atual, t->display);
+
+    for (int i = 0; i < t->qtFilhos; i++) {
+        int filho = dot_rec(t->filhos[i], f, nivel);
+        fprintf(f, "  n%d -> n%d;\n", atual, filho);;
+    }
+
+    return atual;
+}
+
+int ast_to_dot(AST * t, char * fn) {
+    FILE *f = fopen(fn, "w");
+    if (!f) { printf("Erro ao abrir arquivo .dot\n"); return 1; }
+    if (t == NULL) { printf("Ahrvore sintahtica vazia ou invahlida\n"); return 1;}
+
+    fputs("digraph AST {\n  node [fontname=\"Consolas\" shape=box];\n", f);
+
+    int nivel = 0;
+    dot_rec(t, f, &nivel);
+
+    fputs("}\n", f);
+    int ok = !ferror(f);
+    if (fclose(f) != 0) ok = 0;
+    if (!ok) fprintf(stderr, "Falha ao salvar a arvore.\n");
+    return ok;
+}
+
 // Funcão principal do analisador
 int AnaliseSintatica(FILE * tokens, FILE * arvore, FILE * erros) {
     Token vetorTokens[MAX_TOKENS] = { 0 };
@@ -13,13 +43,13 @@ int AnaliseSintatica(FILE * tokens, FILE * arvore, FILE * erros) {
     //se o arquivo estiver completamente vazio ou apenas o TK_EOF
     if (totalTokens <= 1) {
         fprintf(erros, "Erro: Arquivo vazio ou sem secoes validas.\n");
-        printf("PROGRAMA SINTATICAMENTE INVALIDO\n");
-        
         return 1;
     }
 
     AST * raiz = iniciar_ast(&vetorTokens[0]);
     display_tree(raiz);
+
+    ast_to_dot(raiz, "dot-test.dot");
 
     //temporario
     return 0;
@@ -278,6 +308,28 @@ char * nome(TipoToken t) {
     return NULL;
 }
 
+// Retorna a string com nome e o lexema de um token para o serem o display do nó
+char * t_to_d(Token t) {
+    int len = strlen(t.nome) + 2 * strlen(t.lexema) + 3; 
+    char * dText = (char *) malloc(len);
+    if (!dText) {
+        perror("Erro ao alocar memohria para string de display");
+        return "ERRO MEMÓRIA";
+    }
+
+    // f é o fim da string, dependendo do tamanho dela
+    char * f = dText + sprintf(dText, "%s\\n", t.nome);
+
+    // Evita aspas para não conflitar com a gramática de arquivos .dot
+    for (char * c = t.lexema; *c; c++) {
+        if (*c == '"' || *c == '\\') *f++ = '\\'; // Confia em mim
+        *f++ = *c;
+    }
+    *f = '\0';
+
+    return dText;
+}
+
 static void erro(Parser *p, const char *mensagem) {
     if (p->erro) return;
     fprintf(stderr, "Erro sintahtico na linha %d, coluna %d: %s; encontrado %s ('%s').\n",
@@ -286,6 +338,7 @@ static void erro(Parser *p, const char *mensagem) {
     p->erro = 1;
 }
 
+// Avança o parser para o próximo token
 void proximo_token(Parser * p) {    
     if (p->erro) return;
     
@@ -326,7 +379,7 @@ int consumir_terminal(Parser * p, AST * nohPai, TipoToken tipoEsperado, const ch
     char * msgMemoriaInsuficiente = (char *) malloc( (strlen("memohria insuficiente em ") + strlen(callerFunction) + 1) * sizeof(char) );
     sprintf(msgMemoriaInsuficiente, "memohria insuficiente em %s", callerFunction);
 
-    nohFilho = novoNoh(nome(tipoEsperado));
+    nohFilho = novoNoh(t_to_d(p->atual));
     if(!nohFilho) {
         erro(p, msgMemoriaInsuficiente);
         freeAST(nohPai); freeAST(nohFilho);
@@ -347,15 +400,13 @@ AST * iniciar_ast(Token * tokens) {
     p.scanner = s;
     p.atual = p.scanner.tokens[p.scanner.i];
     
-    AST * raiz = novoNoh("<start>");
-    inserirNoh(raiz, exp_programa(&p));
+    // Parte da derivação <programa> como nó raíz, gerando uma árvore n-ária a ser percorrida pelo gerador do arquivo .dot
+    AST * raiz = exp_programa(&p);
+    if (raiz == NULL) {
+        printf("Programa sintaticamente inválido\nAbortando...");
+        return NULL;
+    }
 
-    // AST * raiz = exp_programa(&p);
-
-    // if (!p.erro && p.atual.tipo != TOKEN_FIM)
-    //     erro(&p, "esperado operador ou fim da expressao");
-    // free(p.atual.lexema);
-    // if (p.erro) { free_ast(raiz); return NULL; }
     return raiz;
 }
 
@@ -447,7 +498,6 @@ AST * exp_programa(Parser * p) {
             return NULL;
         }
         inserirNoh(a, b);
-        scanf("%d", &a->qtFilhos); // DONKEY WAIT FOR INPUT
     } while (tipo(p->atual) != TK_EOF);
 
     AST * c = novoNoh("TK_EOF");
@@ -464,8 +514,8 @@ AST * exp_secao(Parser * p) {
     if (!a) { erro(p, "memohria insuficiente em exp_secao()"); return NULL; }
     
     AST * b;
-    if (tipo(p->atual) == DIR_DATA) { b = exp_secao_dados(p);}
-    else if (tipo(p->atual) == DIR_TEXT) { b = exp_secao_codigo(p);}
+    if (tipo(p->atual) == DIR_DATA)              b = exp_secao_dados(p);
+    else if (tipo(p->atual) == DIR_TEXT)         b = exp_secao_codigo(p);
     else { erro(p, "esperado DIR_DATA ou DIR_TEXT"); freeAST(a); return NULL; }
 
     if (b != NULL && !p->erro) {
@@ -491,7 +541,7 @@ AST * exp_secao_dados(Parser * p) {
         freeAST(a);
         return NULL;
     }
-    b = novoNoh("DIR_DATA");
+    b = novoNoh(t_to_d(p->atual));
     if (!b) { erro(p, "memohria insuficiente em exp_secao_dados()"); freeAST(a); return NULL; }
     inserirNoh(a, b);
     proximo_token(p);
@@ -521,7 +571,7 @@ AST * exp_secao_codigo(Parser * p) {
     AST * a = novoNoh("<secao_codigo>");
     if (!a) { erro(p, "memohria insuficiente em exp_secao_codigo()"); return NULL; }
 
-    AST * b = novoNoh("DIR_TEXT");
+    AST * b = novoNoh(t_to_d(p->atual));
     if (!b) { erro(p, "memohria insuficiente em exp_secao_codigo()"); freeAST(a); return NULL; }
     inserirNoh(a, b);
     proximo_token(p);
@@ -554,7 +604,7 @@ AST * exp_linha_dados(Parser * p) {
     AST * b;
 
     // Verificando qual o novo nó baseado no token atual
-    if (tipo(p->atual) == ID) { // Verificando <rotulo>
+    if (tipo(p->atual) == ID) {                           // Verificando <rotulo>
         b = exp_rotulo(p);
         if (b != NULL && !p->erro) inserirNoh(a, b);
         else return NULL;
@@ -565,12 +615,12 @@ AST * exp_linha_dados(Parser * p) {
             else return NULL;
         }
     }
-    else if (inicia_diretiva_dados(tipo(p->atual))) { // Verificando <diretiva_dados>
+    else if (inicia_diretiva_dados(tipo(p->atual))) {     // Verificando <diretiva_dados>
         b = exp_diretiva_dados(p);
         if (b != NULL && !p->erro) inserirNoh(a, b);
         else return NULL;
     }
-    else if (tipo(p->atual) == DIR_GLOBL) { // Verificando <diretiva_global>
+    else if (tipo(p->atual) == DIR_GLOBL) {               // Verificando <diretiva_global>
         b = exp_diretiva_global(p);
         if (b != NULL && !p->erro) inserirNoh(a, b);
         else return NULL;
@@ -601,24 +651,26 @@ AST * exp_linha_codigo(Parser * p) {
     if (!a) { erro(p, "memohria insuficiente em exp_linha_codigo()"); return NULL; }
 
     AST * b;
-    if (tipo(p->atual) == ID) {
+
+    // Verificando qual o novo nó baseado no token atual
+    if (tipo(p->atual) == ID) {                            // Verificando <rotulo>
         b = exp_rotulo(p);
 
         if (!b || p->erro) { freeAST(a); freeAST(b); return NULL; }
         inserirNoh(a, b);
         
-        if (inicia_instrucao(tipo(p->atual))) {
+        if (inicia_instrucao(tipo(p->atual))) {            // Verificando <rotulo> [ <instrucao> ]
             b = exp_instrucao(p);
             
             if (!b || p->erro) { freeAST(a); return NULL; }
             inserirNoh(a, b);
         }
-    } else if (inicia_instrucao(tipo(p->atual))) {
+    } else if (inicia_instrucao(tipo(p->atual))) {         // Verificando <instrucao>
         b = exp_instrucao(p);
 
         if (!b || p->erro) { freeAST(a); return NULL; }
         inserirNoh(a, b);
-    } else if (tipo(p->atual) == DIR_GLOBL) {
+    } else if (tipo(p->atual) == DIR_GLOBL) {              // Verificando <diretiva_global>
         b = exp_diretiva_global(p);
 
         if (!b || p->erro) { freeAST(a); return NULL; }
@@ -647,7 +699,7 @@ AST * exp_rotulo(Parser * p) {
     if (!a) { erro(p, "memohria insuficiente em exp_rotulo()"); return NULL; }
 
     // exp_rotulo() só é chamada a partir do token ID, então ele já é esperado
-    AST * b = novoNoh("ID");
+    AST * b = novoNoh(t_to_d(p->atual));
     if(!b) { erro(p, "memohria insuficiente em exp_rotulo()"); freeAST(a); return NULL; }
     inserirNoh(a, b);
     proximo_token(p);
@@ -657,7 +709,7 @@ AST * exp_rotulo(Parser * p) {
         erro(p, "esperado \":\"");
         freeAST(a); return NULL;
     }
-    b = novoNoh("SMB_COL");
+    b = novoNoh(t_to_d(p->atual));
     if(!b) { erro(p, "memohria insuficiente em exp_rotulo()"); freeAST(a); return NULL; }
     inserirNoh(a, b);
     proximo_token(p);
@@ -702,12 +754,12 @@ AST * exp_diretiva_dados(Parser * p) {
             erro(p, "esperado STRING");
             freeAST(a); return NULL;
         } else {
-            b = novoNoh("STRING");
+            b = novoNoh(t_to_d(p->atual));
             if (b != NULL) { inserirNoh(a, b); proximo_token(p); }
             else { freeAST(a); return NULL; }
         }
     } else if (tipo(p->atual) == DIR_SPACE || tipo(p->atual) == DIR_ALIGN) { // Verificando ".space" NUM_INT ou ".align" NUM_INT
-        b = tipo(p->atual) == DIR_SPACE ? novoNoh("DIR_SPACE") : novoNoh("DIR_ALIGN");
+        b = novoNoh(t_to_d(p->atual));
         if (b != NULL) { inserirNoh(a, b); proximo_token(p); }
         else { freeAST(a); return NULL; }
         
@@ -715,7 +767,7 @@ AST * exp_diretiva_dados(Parser * p) {
             erro(p, "esperado NUM_INT");
             freeAST(a); return NULL;
         } else {
-            b = novoNoh("NUM_INT");
+            b = novoNoh(t_to_d(p->atual));
             if (b != NULL) { inserirNoh(a, b); proximo_token(p); }
             else { freeAST(a); return NULL; }
         }
@@ -733,11 +785,14 @@ AST * exp_diretiva_inteiros(Parser * p) {
     printf("\x1b[33mexp_diretiva_inteiros()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<diretiva_inteiros>");
     if (!a) { erro(p, "memohria insuficiente em exp_diretiva_inteiros()"); return NULL; }
-
-    AST * b = tipo(p->atual) == DIR_WORD ? novoNoh("DIR_WORD") :
-    tipo(p->atual) == DIR_HALF ? novoNoh("DIR_HALF") :
-    novoNoh("DIR_BYTE");
-
+    
+    AST * b;
+    if (tipo(p->atual) != DIR_WORD && tipo(p->atual) != DIR_HALF && tipo(p->atual) != DIR_BYTE) {
+        erro(p, "\".word\" ou \".half\" ou \".byte\" esperado");
+        freeAST(a); return NULL;
+    }
+    b = novoNoh(t_to_d(p->atual));
+    
     if (!b) {
         erro(p, "memohria insuficiente em exp_diretiva_inteiros()");
         freeAST(a); freeAST(b); return NULL;
@@ -752,8 +807,8 @@ AST * exp_diretiva_inteiros(Parser * p) {
 AST * exp_lista_inteiros(Parser * p) {
     printf("\x1b[33mexp_lista_inteiros()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<lista_inteiros>");
-    
-    AST * b = tipo(p->atual) == NUM_INT ? novoNoh("NUM_INT") : NULL;
+    AST * b = tipo(p->atual) == NUM_INT ? novoNoh(t_to_d(p->atual)) : NULL;
+
     if (!a || !b) {
         erro(p, "memohria insuficiente em exp_lista_inteiros() ou NUM_INT esperado");
         freeAST(a); freeAST(b);
@@ -764,11 +819,11 @@ AST * exp_lista_inteiros(Parser * p) {
 
     // Verificando inteiros adicionais
     while (tipo(p->atual) == SMB_COM) {
-        b = novoNoh("SMB_COM");
+        b = novoNoh(t_to_d(p->atual));
         if (b != NULL) { inserirNoh(a, b); proximo_token(p); }
         else { freeAST(a); freeAST(b); return NULL; }
 
-        b = tipo(p->atual) == NUM_INT ? novoNoh("NUM_INT") : NULL;
+        b = tipo(p->atual) == NUM_INT ? novoNoh(t_to_d(p->atual)) : NULL;
         if(!b) {
             erro(p, "NUM_INT esperado");
             freeAST(a); return NULL;
@@ -784,7 +839,12 @@ AST * exp_diretiva_string(Parser * p) {
     AST * a = novoNoh("<diretiva_string>");
     if (!a) { erro(p, "memohria insuficiente em exp_diretiva_string()"); return NULL; }
 
-    AST * b = tipo(p->atual) == DIR_ASCII ? novoNoh("DIR_ASCII") : novoNoh("DIR_ASCIIZ");
+    if (tipo(p->atual) != DIR_ASCII && tipo(p->atual) != DIR_ASCIIZ) {
+        erro(p, "\".ascii\" ou \".asciiz\" esperado");
+        freeAST(a); return NULL;
+    }
+
+    AST * b = novoNoh(t_to_d(p->atual));
     if (!b) {
         erro(p, "memohria insuficiente em exp_diretiva_string()");
         freeAST(a); freeAST(b); return NULL;
@@ -795,9 +855,9 @@ AST * exp_diretiva_string(Parser * p) {
     return a;
 }
 
-// 
-
+// -------------------------
 // ---- 2.4. Instruções ----
+// -------------------------
 
 // <instrucao_tres_registradores> | <instrucao_dois_registradores> | <instrucao_um_registrador> | <instrucao_imediato> | <instrucao_deslocamento> | <instrucao_li> | <instrucao_la> | <instrucao_memoria> | <instrucao_desvio> | <instrucao_salto> | <instrucao_sem_operandos>
 AST * exp_instrucao(Parser * p) {
@@ -863,7 +923,7 @@ AST * exp_op_tres_registradores(Parser * p) {
         freeAST(a); return NULL;
     }
     
-    AST * b = novoNoh(p->atual.nome);
+    AST * b = novoNoh(t_to_d(p->atual));
     if (!b) {
         erro(p, "memohria insuficiente em exp_op_tres_registradores()");
         freeAST(a); freeAST(b);
@@ -906,7 +966,7 @@ AST * exp_op_dois_registradores(Parser * p) {
         freeAST(a); return NULL;
     }
 
-    AST * b = novoNoh(p->atual.nome);
+    AST * b = novoNoh(t_to_d(p->atual));
     if (!b) {
         erro(p, "memohria insuficiente em exp_op_dois_registradores()");
         freeAST(a); freeAST(b);
@@ -946,7 +1006,7 @@ AST * exp_op_um_registrador(Parser * p) {
         freeAST(a); return NULL;
     }
 
-    AST * b = novoNoh(p->atual.nome);
+    AST * b = novoNoh(t_to_d(p->atual));
     if (!b) {
         erro(p, "memohria insuficiente em exp_op_um_registrador()");
         freeAST(a); freeAST(b);
@@ -1008,7 +1068,7 @@ AST * exp_op_deslocamento(Parser * p) {
         freeAST(a); return NULL;
     }
 
-    AST * b = novoNoh(p->atual.nome);
+    AST * b = novoNoh(t_to_d(p->atual));
     if (!b) {
         erro(p, "memohria insuficiente em exp_op_deslocamento()");
         freeAST(a); freeAST(b);
@@ -1024,14 +1084,14 @@ AST * exp_op_deslocamento(Parser * p) {
 AST * exp_instrucao_li(Parser * p) { // sei que não é a melhor função, mas tô testando umas coisas
     printf("\x1b[33mexp_instrucao_li()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_li>");
-    AST * b = novoNoh("INS_LI");
+    AST * b = novoNoh(t_to_d(p->atual));
     if (!a || !b) { erro(p, "memohria insuficiente em exp_instrucao_li()"); return NULL; }
     inserirNoh(a, b); proximo_token(p);
 
     AST *c, *d, *e;
-    c = tipo(p->atual) == REG     ? novoNoh("REG")     : NULL; proximo_token(p);
-    d = tipo(p->atual) == SMB_COM ? novoNoh("SMB_COM") : NULL; proximo_token(p);
-    e = tipo(p->atual) == NUM_INT ? novoNoh("NUM_INT") : NULL; proximo_token(p);
+    c = tipo(p->atual) == REG     ? novoNoh(t_to_d(p->atual)) : NULL; proximo_token(p); // Yeah I know this bit looks
+    d = tipo(p->atual) == SMB_COM ? novoNoh(t_to_d(p->atual)) : NULL; proximo_token(p); // dumb after I created t_to_d()
+    e = tipo(p->atual) == NUM_INT ? novoNoh(t_to_d(p->atual)) : NULL; proximo_token(p); // but time is short and YOLO!
 
     if (!c || !d || !e) {
         erro(p, "erro ao criar derivassaum <instrucao_li>");
@@ -1099,7 +1159,7 @@ AST * exp_op_memoria(Parser * p) {
     AST * a = novoNoh("<op_memoria>");
     if (!a) { erro(p, "memohria insuficiente em exp_op_memoria()"); return NULL; }
 
-    AST * b = novoNoh(p->atual.nome);
+    AST * b = novoNoh(t_to_d(p->atual));
     if (!b) {
         erro(p, "memohria insuficiente em exp_op_memoria()");
        freeAST(a); freeAST(b);
@@ -1163,7 +1223,7 @@ AST * exp_op_desvio(Parser * p) {
         freeAST(a); return NULL;
     }
 
-    AST * b = novoNoh(p->atual.nome);
+    AST * b = novoNoh(t_to_d(p->atual));
     if (!b) {
         erro(p, "memohria insuficiente em exp_op_desvio()");
         freeAST(a); freeAST(b);
@@ -1203,7 +1263,7 @@ AST * exp_op_salto(Parser * p) {
         freeAST(a); return NULL;
     }
 
-    AST * b = novoNoh(p->atual.nome);
+    AST * b = novoNoh(t_to_d(p->atual));
     if (!b) {
         erro(p, "memohria insuficiente em exp_op_salto()");
        freeAST(a); freeAST(b);
@@ -1217,15 +1277,15 @@ AST * exp_op_salto(Parser * p) {
 // “syscall” | “nop”
 AST * exp_instrucao_sem_operandos(Parser * p) {
     printf("\x1b[33mexp_instrucao_sem_operandos()!\x1b[37m\n"); // DONKEY function-call
-    AST * a = novoNoh("_instrucao_sem_operandos>");
+    AST * a = novoNoh("<instrucao_sem_operandos>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_sem_operandos()"); return NULL; }
 
-    if (tipo(p->atual) != INS_SYSCALL || tipo(p->atual) != INS_NOP) {
+    if (tipo(p->atual) != INS_SYSCALL && tipo(p->atual) != INS_NOP) {
         erro(p, "INS_SYSCALL ou INS_NOP esperado");
         freeAST(a); return NULL;
     }
 
-    AST * b = novoNoh(p->atual.nome);
+    AST * b = novoNoh(t_to_d(p->atual));
     if (!b) {
         erro(p, "memohria insuficiente em exp_instrucao_sem_operandos()");
         freeAST(a); freeAST(b);

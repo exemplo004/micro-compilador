@@ -60,10 +60,15 @@ typedef struct AST {
 
 int AnaliseSintatica(FILE * lexOut, FILE * saidaSintatico, FILE * errSintatico);
 int extrairLexemas(FILE * lexOut, Token * destino);
-void exibirTokens(Token * tokenVector, int total);
-
 AST * iniciar_ast(Token * vetorTokens);
+
+// Exibidoras
+void exibirTokens(Token * tokenVector, int total);
 int display_tree(AST * raiz);
+
+// Geradoras do arquivo .dot
+int dot_rec(AST *t, FILE *f, int *id);
+int ast_to_dot(AST *t, char *caminho);
 
 // ---- EXPANSORES ----
 AST * exp_programa(Parser * p);
