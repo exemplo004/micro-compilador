@@ -60,7 +60,7 @@ typedef struct AST {
     int capacidade;
 } AST;
 
-int AnaliseSintatica(FILE * lexOut);
+int AnaliseSintatica(FILE * lexOut, char * sinOut);
 int extrairLexemas(FILE * lexOut, Token * destino);
 void exibirTokens(Token * tokenVector, int total);
 

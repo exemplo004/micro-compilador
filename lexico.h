@@ -3,6 +3,8 @@
 
 #include <stdio.h>
 
+#define ARQ_OUT_LEX "out.lex"
+
 // Estrutura de um Token
 typedef struct {
     char nome[50];      // nome da categoria do token, ex: "INS_LI"

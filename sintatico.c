@@ -34,7 +34,7 @@ int ast_to_dot(AST * t, char * fn) {
 }
 
 // Funcão principal do analisador
-int AnaliseSintatica(FILE * tokens) {
+int AnaliseSintatica(FILE * tokens, char * fn) {
     Token vetorTokens[MAX_TOKENS] = { 0 };
     int totalTokens = extrairLexemas(tokens, vetorTokens);
 
@@ -55,7 +55,10 @@ int AnaliseSintatica(FILE * tokens) {
     fprintf(fe, "Nenhum erro sintático encontrado.");
     printf("PROGRAMA SINTATICAMENTE VAHLIDO\n");
 
-    ast_to_dot(raiz, ARQ_AST);
+    char * arqAST = malloc(strlen(fn) + 5);
+    sprintf(arqAST, "%s%s", fn, ".dot");
+
+    ast_to_dot(raiz, arqAST);
 
     fclose(fe);
     return 0;
