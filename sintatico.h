@@ -4,8 +4,10 @@
 #include "lexico.h" // para a struct Token
 
 #define MAX_TOKENS 1024
-#define MAX_NESTING 256
 #define TREE_PREFIX_MAX 512
+
+#define ARQ_ERR_SIN "err.sin"
+#define ARQ_AST "ast.dot"
 
 typedef enum {
     // Registradores identificadores e literais
@@ -58,19 +60,16 @@ typedef struct AST {
     int capacidade;
 } AST;
 
-int AnaliseSintatica(FILE * lexOut, FILE * saidaSintatico, FILE * errSintatico);
+int AnaliseSintatica(FILE * lexOut);
 int extrairLexemas(FILE * lexOut, Token * destino);
-AST * iniciar_ast(Token * vetorTokens);
-
-// Exibidoras
 void exibirTokens(Token * tokenVector, int total);
-int display_tree(AST * raiz);
 
 // Geradoras do arquivo .dot
 int dot_rec(AST *t, FILE *f, int *id);
 int ast_to_dot(AST *t, char *caminho);
 
 // ---- EXPANSORES ----
+AST * iniciar_ast(Token * vetorTokens);
 AST * exp_programa(Parser * p);
 AST * exp_secao(Parser * p);
 AST * exp_secao_dados(Parser * p);

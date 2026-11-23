@@ -34,24 +34,30 @@ int ast_to_dot(AST * t, char * fn) {
 }
 
 // Funcão principal do analisador
-int AnaliseSintatica(FILE * tokens, FILE * arvore, FILE * erros) {
+int AnaliseSintatica(FILE * tokens) {
     Token vetorTokens[MAX_TOKENS] = { 0 };
     int totalTokens = extrairLexemas(tokens, vetorTokens);
-    //verificação
-    exibirTokens(vetorTokens, totalTokens);
+
+    FILE * fe = fopen(ARQ_ERR_SIN, "w");
     
-    //se o arquivo estiver completamente vazio ou apenas o TK_EOF
+    // se o arquivo estiver completamente vazio ou apenas o TK_EOF
     if (totalTokens <= 1) {
-        fprintf(erros, "Erro: Arquivo vazio ou sem secoes validas.\n");
+        fprintf(fe, "Erro: Arquivo vazio ou sem secoes validas.\n");
         return 1;
     }
 
     AST * raiz = iniciar_ast(&vetorTokens[0]);
-    display_tree(raiz);
 
-    ast_to_dot(raiz, "dot-test.dot");
+    if (!raiz) {
+        printf("PROGRAMA SINTATICAMENTE INVAHLIDO\n");
+        return 1;
+    }
+    fprintf(fe, "Nenhum erro sintático encontrado.");
+    printf("PROGRAMA SINTATICAMENTE VAHLIDO\n");
 
-    //temporario
+    ast_to_dot(raiz, ARQ_AST);
+
+    fclose(fe);
     return 0;
 }
 
@@ -142,9 +148,7 @@ void inserirNoh(AST * pai, AST * filho) {
         return;
     }
 
-    printf("inserindo noh %s em %s\n", filho->display, pai->display); // DONKEY debug
     if (pai->qtFilhos >= pai->capacidade) {
-        printf("Limite de filhos para o noh %s excedido. Ampliando capacidade...\n", pai->display);
         pai->filhos = realloc(pai->filhos, ++pai->capacidade * sizeof(AST *));
     }
 
@@ -332,10 +336,13 @@ char * t_to_d(Token t) {
 
 static void erro(Parser *p, const char *mensagem) {
     if (p->erro) return;
-    fprintf(stderr, "Erro sintahtico na linha %d, coluna %d: %s; encontrado %s ('%s').\n",
-            p->atual.linha, p->atual.coluna, mensagem,
-            p->atual.nome, p->atual.lexema);
+    FILE * f = fopen(ARQ_ERR_SIN, "w");
+
+    fprintf(f, "Erro sintahtico na linha %d, coluna %d\n\t%s;\n\tencontrado %s ('%s').\n",
+        p->atual.linha, p->atual.coluna, mensagem, p->atual.nome, p->atual.lexema);
+            
     p->erro = 1;
+    fclose(f);
 }
 
 // Avança o parser para o próximo token
@@ -356,7 +363,6 @@ void proximo_token(Parser * p) {
     // Incrementa cursor e entrega o novo token ao parser
     p->scanner.i++;
     p->atual = p->scanner.tokens[p->scanner.i];
-    printf("NOVO TOKEN (%i)\t%s -- %s\n", p->scanner.i, p->atual.nome, p->atual.lexema); // DONKEY
 }
 
 // Consome um token terminal, passando para o próximo ao fim da chamada
@@ -393,7 +399,6 @@ int consumir_terminal(Parser * p, AST * nohPai, TipoToken tipoEsperado, const ch
 
 AST * iniciar_ast(Token * tokens) {
     Scanner s = { tokens, 0 };
-    printf("token[%i]: %s\n", s.i, tokens[s.i].nome); // DONKEY
 
     // Inicializa o parser com 0 em todos os atributos e insere o seu primeiro token
     Parser p = { 0 };
@@ -402,45 +407,9 @@ AST * iniciar_ast(Token * tokens) {
     
     // Parte da derivação <programa> como nó raíz, gerando uma árvore n-ária a ser percorrida pelo gerador do arquivo .dot
     AST * raiz = exp_programa(&p);
-    if (raiz == NULL) {
-        printf("Programa sintaticamente inválido\nAbortando...");
-        return NULL;
-    }
+    if (p.erro) return NULL;
 
     return raiz;
-}
-
-static int display_tree_rec(AST * no, char * prefixo, int len, int eh_ultimo, int eh_raiz) {
-    int total = 1;
-
-    if (eh_raiz) printf("%s\n", no->display);
-    else         printf("%s%s%s\n", prefixo, eh_ultimo ? "`-- " : "|-- ", no->display);
-
-    int novoLen = len;
-    if (!eh_raiz) {
-        if (len + 4 >= TREE_PREFIX_MAX) {
-            printf("%s...\n", prefixo);
-            return total;
-        }
-        memcpy(prefixo + len, eh_ultimo ? "    " : "|   ", 4);
-        novoLen = len + 4;
-        prefixo[novoLen] = '\0';
-    }
-
-    for (int i = 0; i < no->qtFilhos; i++)
-        total += display_tree_rec(no->filhos[i], prefixo, novoLen, i == no->qtFilhos - 1, 0);
-
-    prefixo[len] = '\0';
-    return total;
-}
-
-int display_tree(AST * root) {
-    if (!root) {
-        printf("(arvore vazia)\n");
-        return 0;
-    }
-    char prefixo[TREE_PREFIX_MAX] = "";
-    return display_tree_rec(root, prefixo, 0, 1, 1);
 }
 
 // Verifica se o token é capaz de iniciar uma derivação <linha_dados>
@@ -485,7 +454,6 @@ int inicia_instrucao(TipoToken t) {
 
 // <secao> { <secao> } TK_EOF
 AST * exp_programa(Parser * p) {
-    printf("\x1b[33mexp_programa()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<programa>");
     if (!a) { erro(p, "memohria insuficiente em exp_programa()\n"); return NULL; }
     
@@ -509,7 +477,6 @@ AST * exp_programa(Parser * p) {
 
 // <secao_dados> | <secao_codigo>
 AST * exp_secao(Parser * p) {
-    printf("\x1b[33mexp_secao()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<secao>");
     if (!a) { erro(p, "memohria insuficiente em exp_secao()"); return NULL; }
     
@@ -530,7 +497,6 @@ AST * exp_secao(Parser * p) {
 
 // .data" EOL { <linha_dados> }
 AST * exp_secao_dados(Parser * p) {
-    printf("\x1b[33mexp_secao_dados()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<secao_dados>");
     if (!a) { erro(p, "memohria insuficiente em exp_secao_dados()"); return NULL; }
 
@@ -567,7 +533,6 @@ AST * exp_secao_dados(Parser * p) {
 
 // ".text" EOL { <linha_codigo> }
 AST * exp_secao_codigo(Parser * p) {
-    printf("\x1b[33mexp_secao_codigo()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<secao_codigo>");
     if (!a) { erro(p, "memohria insuficiente em exp_secao_codigo()"); return NULL; }
 
@@ -597,7 +562,6 @@ AST * exp_secao_codigo(Parser * p) {
 
 // <rotulo> [ <diretiva_dados> ] EOL | <diretiva_dados> EOL | <diretiva_global> EOL
 AST * exp_linha_dados(Parser * p) {
-    printf("\x1b[33mexp_linha_dados()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<linha_dados>");
     if (!a) { erro(p, "memohria insuficiente em exp_linha_dados()"); return NULL; }
 
@@ -646,7 +610,6 @@ AST * exp_linha_dados(Parser * p) {
 
 // <rotulo> [ <instrucao> ] EOL | <instrucao> EOL | <diretiva_global> EOL
 AST * exp_linha_codigo(Parser * p) {
-    printf("\x1b[33mexp_linha_codigo()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<linha_codigo>");
     if (!a) { erro(p, "memohria insuficiente em exp_linha_codigo()"); return NULL; }
 
@@ -694,7 +657,6 @@ AST * exp_linha_codigo(Parser * p) {
 
 // ID ":"
 AST * exp_rotulo(Parser * p) {
-    printf("\x1b[33mexp_rotulo()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<rotulo>");
     if (!a) { erro(p, "memohria insuficiente em exp_rotulo()"); return NULL; }
 
@@ -719,7 +681,6 @@ AST * exp_rotulo(Parser * p) {
 
 // ".globl" ID
 AST * exp_diretiva_global(Parser * p) {
-    printf("\x1b[33mexp_diretiva_global()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<diretiva_global>");
     if (!a) { erro(p, "memohria insuficiente em exp_diretiva_global()"); return NULL; }
 
@@ -732,7 +693,6 @@ AST * exp_diretiva_global(Parser * p) {
 // ---- 2.3. Declarações de dados
 // <diretiva_inteiros> <lista_inteiros> | <diretiva_string> STRING | ".space" NUM_INT | ".align" NUM_INT
 AST * exp_diretiva_dados(Parser * p) {
-    printf("\x1b[33mexp_diretiva_dados()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<diretiva_dados>");
     if (!a) { erro(p, "memohria insuficiente em exp_diretiva_dados()"); return NULL; }
 
@@ -782,7 +742,6 @@ AST * exp_diretiva_dados(Parser * p) {
 
 // ".word" | ".half" | ".byte"
 AST * exp_diretiva_inteiros(Parser * p) {
-    printf("\x1b[33mexp_diretiva_inteiros()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<diretiva_inteiros>");
     if (!a) { erro(p, "memohria insuficiente em exp_diretiva_inteiros()"); return NULL; }
     
@@ -805,7 +764,6 @@ AST * exp_diretiva_inteiros(Parser * p) {
 
 // NUM_INT { "," NUM_INT }
 AST * exp_lista_inteiros(Parser * p) {
-    printf("\x1b[33mexp_lista_inteiros()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<lista_inteiros>");
     AST * b = tipo(p->atual) == NUM_INT ? novoNoh(t_to_d(p->atual)) : NULL;
 
@@ -835,7 +793,6 @@ AST * exp_lista_inteiros(Parser * p) {
 
 // ".ascii" | ".asciiz"
 AST * exp_diretiva_string(Parser * p) {
-    printf("\x1b[33mexp_diretiva_string()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<diretiva_string>");
     if (!a) { erro(p, "memohria insuficiente em exp_diretiva_string()"); return NULL; }
 
@@ -861,7 +818,6 @@ AST * exp_diretiva_string(Parser * p) {
 
 // <instrucao_tres_registradores> | <instrucao_dois_registradores> | <instrucao_um_registrador> | <instrucao_imediato> | <instrucao_deslocamento> | <instrucao_li> | <instrucao_la> | <instrucao_memoria> | <instrucao_desvio> | <instrucao_salto> | <instrucao_sem_operandos>
 AST * exp_instrucao(Parser * p) {
-    printf("\x1b[33mexp_instrucao()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao()"); return NULL; }
 
@@ -891,7 +847,6 @@ AST * exp_instrucao(Parser * p) {
 
 // <op_tres_registradores> REG "," REG "," REG
 AST * exp_instrucao_tres_registradores(Parser * p) {
-    printf("\x1b[33mexp_instrucao_tres_registradores()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_tres_registradores>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_tres_registradores()"); return NULL; }
 
@@ -914,7 +869,6 @@ AST * exp_instrucao_tres_registradores(Parser * p) {
 
 // "add" | "addu" | "sub" | "subu" | "mul" | "and" | "or" | "xor" | "nor" | "slt"
 AST * exp_op_tres_registradores(Parser * p) {
-    printf("\x1b[33mexp_op_tres_registradores()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<op_tres_registradores>");
     if (!a) { erro(p, "memohria insuficiente em exp_op_tres_registradores()"); return NULL; }
 
@@ -937,7 +891,6 @@ AST * exp_op_tres_registradores(Parser * p) {
 
 // <op_dois_registradores> REG "," REG
 AST * exp_instrucao_dois_registradores(Parser * p) {
-    printf("\x1b[33mexp_instrucao_dois_registradores()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_dois_registradores>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_dois_registradores()"); return NULL; }
 
@@ -957,7 +910,6 @@ AST * exp_instrucao_dois_registradores(Parser * p) {
 
 // "move" | "div"
 AST * exp_op_dois_registradores(Parser * p) {
-    printf("\x1b[33mexp_op_dois_registradores()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<op_dois_registradores>");
     if (!a) { erro(p, "memohria insuficiente em exp_op_dois_registradores()"); return NULL; }
     
@@ -980,7 +932,6 @@ AST * exp_op_dois_registradores(Parser * p) {
 
 // <op_um_registrador> REG
 AST * exp_instrucao_um_registrador(Parser * p) {
-    printf("\x1b[33mexp_instrucao_um_registrador()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_um_registrador>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_um_registrador()"); return NULL; }
 
@@ -997,7 +948,6 @@ AST * exp_instrucao_um_registrador(Parser * p) {
 
 // "mflo" | "mfhi" | "jr"
 AST * exp_op_um_registrador(Parser * p) {
-    printf("\x1b[33mexp_op_um_registrador()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<op_um_registrador>");
     if (!a) { erro(p, "memohria insuficiente em exp_op_um_registrador()"); return NULL; }
     
@@ -1020,7 +970,6 @@ AST * exp_op_um_registrador(Parser * p) {
 
 // "addi" REG "," REG "," NUM_INT
 AST * exp_instrucao_imediato(Parser * p) {
-    printf("\x1b[33mexp_instrucao_imediato()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_imediato>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_imediato()"); return NULL; }
 
@@ -1037,7 +986,6 @@ AST * exp_instrucao_imediato(Parser * p) {
 
 // <op_deslocamento> REG "," REG "," NUM_INT
 AST * exp_instrucao_deslocamento(Parser * p) {
-    printf("\x1b[33mexp_instrucao_deslocamento()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_deslocamento>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_deslocamento()"); return NULL; }
 
@@ -1059,7 +1007,6 @@ AST * exp_instrucao_deslocamento(Parser * p) {
 
 // "sll" | "srl"
 AST * exp_op_deslocamento(Parser * p) {
-    printf("\x1b[33mexp_op_deslocamento()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<op_deslocamento>");
     if (!a) { erro(p, "memohria insuficiente em exp_op_deslocamento()"); return NULL; }
     
@@ -1082,7 +1029,6 @@ AST * exp_op_deslocamento(Parser * p) {
 
 // "li" REG "," NUM_INT
 AST * exp_instrucao_li(Parser * p) { // sei que não é a melhor função, mas tô testando umas coisas
-    printf("\x1b[33mexp_instrucao_li()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_li>");
     AST * b = novoNoh(t_to_d(p->atual));
     if (!a || !b) { erro(p, "memohria insuficiente em exp_instrucao_li()"); return NULL; }
@@ -1105,7 +1051,6 @@ AST * exp_instrucao_li(Parser * p) { // sei que não é a melhor função, mas t
 
 // "la" REG "," ID
 AST * exp_instrucao_la(Parser * p) {
-    printf("\x1b[33mexp_instrucao_la()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_la>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_la()"); return NULL; }
 
@@ -1120,7 +1065,6 @@ AST * exp_instrucao_la(Parser * p) {
 
 // <op_memoria> REG "," <endereco>
 AST * exp_instrucao_memoria(Parser * p) {
-    printf("\x1b[33mexp_instrucao_memoria()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_memoria>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_memoria()"); return NULL; }
 
@@ -1155,7 +1099,6 @@ AST * exp_instrucao_memoria(Parser * p) {
 
 // "lw" | "sw" | "lb" | "sb" | "lh" | "sh"
 AST * exp_op_memoria(Parser * p) {
-    printf("\x1b[33mexp_op_memoria()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<op_memoria>");
     if (!a) { erro(p, "memohria insuficiente em exp_op_memoria()"); return NULL; }
 
@@ -1172,7 +1115,6 @@ AST * exp_op_memoria(Parser * p) {
 
 // ID | NUM_INT "(" REG ")"
 AST * exp_endereco(Parser * p) {
-    printf("\x1b[33mexp_endereco()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<endereco>");
     if (!a) { erro(p, "memohria insuficiente em exp_endereco()"); return NULL; }
 
@@ -1192,7 +1134,6 @@ AST * exp_endereco(Parser * p) {
 
 // <op_desvio> REG "," REG "," ID
 AST * exp_instrucao_desvio(Parser * p) {
-    printf("\x1b[33mexp_instrucao_desvio()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_desvio>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_desvio()"); return NULL; }
 
@@ -1214,7 +1155,6 @@ AST * exp_instrucao_desvio(Parser * p) {
 
 // "beq" | "bne" | "blt" | "ble" | "bgt" | "bge"
 AST * exp_op_desvio(Parser * p) {
-    printf("\x1b[33mexp_op_desvio()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<op_desvio>");
     if (!a) { erro(p, "memohria insuficiente em exp_op_desvio()"); return NULL; }
     
@@ -1237,7 +1177,6 @@ AST * exp_op_desvio(Parser * p) {
 
 // <op_salto> ID
 AST * exp_instrucao_salto(Parser * p) {
-    printf("\x1b[33mexp_instrucao_salto()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_salto>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_salto()"); return NULL; }
 
@@ -1254,7 +1193,6 @@ AST * exp_instrucao_salto(Parser * p) {
 
 // "j" | "jal"
 AST * exp_op_salto(Parser * p) {
-    printf("\x1b[33mexp_op_salto()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<op_salto>");
     if (!a) { erro(p, "memohria insuficiente em exp_op_salto()"); return NULL; }
 
@@ -1276,7 +1214,6 @@ AST * exp_op_salto(Parser * p) {
 
 // “syscall” | “nop”
 AST * exp_instrucao_sem_operandos(Parser * p) {
-    printf("\x1b[33mexp_instrucao_sem_operandos()!\x1b[37m\n"); // DONKEY function-call
     AST * a = novoNoh("<instrucao_sem_operandos>");
     if (!a) { erro(p, "memohria insuficiente em exp_instrucao_sem_operandos()"); return NULL; }
 
